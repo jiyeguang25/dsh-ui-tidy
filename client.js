@@ -415,6 +415,44 @@ window.__ModuleLoader__.load({
 		 * @param label - the item label.
 		 * @returns {void}
 		 */
+		/**
+		 * Square up the shell's own settings surface.
+		 *
+		 * Its trigger lives in the shipped sidebar footer, which this plugin pushes
+		 * off screen, so the surface it opens anchors to a window corner and lands
+		 * under the title bar. It is centred once, and only when it really did open
+		 * in a corner — a shell that positions it well is left alone.
+		 */
+		function centerHostSettings() {
+			let tries = 0;
+			const settle = () => {
+				const nodes = [...document.querySelectorAll('[role="dialog"], [class*="_panel"], [class*="_sheet"], [class*="_modal"]')];
+				let target = null;
+				for (const node of nodes) {
+					const text = node.textContent || "";
+					if (!text.includes("通用设置") && !text.includes("账号与余额")) continue;
+					if (target === null || node.contains(target)) target = node;
+				}
+				if (target === null) {
+					tries += 1;
+					if (tries < 14) setTimeout(settle, 100);
+					return;
+				}
+				const rect = target.getBoundingClientRect();
+				if (rect.left > 130 || rect.top > 130) return;
+				target.style.setProperty("position", "fixed", "important");
+				target.style.setProperty("left", "50%", "important");
+				target.style.setProperty("top", "50%", "important");
+				target.style.setProperty("margin", "0", "important");
+				target.style.setProperty("transform", "translate(-50%, -50%)", "important");
+				target.style.setProperty("max-height", "86vh", "important");
+				target.style.setProperty("border-radius", "12px", "important");
+				target.style.setProperty("box-shadow", "0 24px 64px rgba(0, 0, 0, 0.42)", "important");
+				target.style.setProperty("z-index", "1300", "important");
+			};
+			settle();
+		}
+
 		function runHostAccountItem(label) {
 			const trigger = document.querySelector(ACCOUNT_TRIGGER_SELECTOR);
 			if (trigger === null) return;
@@ -432,6 +470,7 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					console.warn("[ui-tidy] account item failed:", error);
 				}
+				if (label === "设置") centerHostSettings();
 			}, 150);
 		}
 
@@ -3414,6 +3453,28 @@ customGlyph(action)
 
 		function apply(ctx) {
 			rootCtx = ctx;
+			/*
+			 * The sub-agent drawer dims the frame with its own backdrop, but that
+			 * backdrop only answers clicks on the strip beside the drawer. Any click
+			 * outside the drawer — and outside the top bar, which must stay live —
+			 * closes it through its own close button, so it dismisses like every
+			 * other surface here.
+			 */
+			ctx.effect(() => {
+				const onPointerDown = (event) => {
+					const panel = document.querySelector(".dsh-sam-panel");
+					if (panel === null) return;
+					const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+					for (const node of path) {
+						if (node === panel) return;
+						if (node !== null && typeof node === "object" && node.classList !== undefined && typeof node.classList.contains === "function" && node.classList.contains("uidy-pages")) return;
+					}
+					const close = document.querySelector(".dsh-sam-close");
+					if (close !== null) close.click();
+				};
+				document.addEventListener("pointerdown", onPointerDown, true);
+				return () => document.removeEventListener("pointerdown", onPointerDown, true);
+			});
 
 			ctx.effect(() => {
 				try {
