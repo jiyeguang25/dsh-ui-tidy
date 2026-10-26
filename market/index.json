@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "title": "dsh-ui-tidy",
+  "description": {
+    "zh": "DSH 界面整理插件：窗口标题栏一排图标直达各页面，设置里新增「顶栏界面」页管全部开关，模型选择器按供应商折叠。",
+    "en": "Tidy the DSH title bar: page shortcuts as icons, a settings page for every switch, and a folded model picker."
+  },
+  "metadata": {
+    "categories": {
+      "ui": {
+        "title": {
+          "zh": "UI 增强",
+          "en": "UI Enhancements"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "dsh-ui-tidy",
+      "title": "UI Tidy",
+      "description": {
+        "zh": "把窗口标题栏收拾成一排图标按钮：从运行中的界面自动发现各插件页面入口、原样借用插件自带图标、只显示图标悬停看名字、可拖拽换位。设置里新增「顶栏界面」页集中所有开关；模型选择器默认按供应商折叠、合并同名供应商、隐藏重复模型。同时把官方左栏移走、会话页头两行合一、顶栏提到浮层之上随时可点。",
+        "en": "Turn the window title bar into one row of icon buttons: entries discovered from the live UI, each plugin's own glyph, icon-only with hover names, drag to reorder. A dedicated settings page holds every switch; the model picker folds by provider, merges same-name providers and hides duplicate rows."
+      },
+      "homepage": "https://github.com/yeguang225/dsh-ui-tidy",
+      "repository": {
+        "url": "https://github.com/yeguang225/dsh-ui-tidy"
+      },
+      "metadata": {
+        "category": "ui",
+        "keywords": [
+          "titlebar",
+          "ui",
+          "icons",
+          "model-picker",
+          "settings"
+        ],
+        "labels": [],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1793558400,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {}
+        }
+      ]
+    }
+  ]
+}

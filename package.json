@@ -1,0 +1,52 @@
+{
+  "name": "dsh-ui-tidy",
+  "version": "0.2.0",
+  "description": "Tidy the DSH Web GUI title bar: page shortcuts as icons, one settings page for the bar, a slimmer model picker, and no duplicate sidebar entries.",
+  "type": "module",
+  "main": "index.js",
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "ui",
+    "titlebar"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yeguang225/dsh-ui-tidy.git"
+  },
+  "homepage": "https://github.com/yeguang225/dsh-ui-tidy#readme",
+  "bugs": {
+    "url": "https://github.com/yeguang225/dsh-ui-tidy/issues"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  }
+}

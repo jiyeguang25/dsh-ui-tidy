@@ -1,0 +1,6 @@
+# bundle patch for dsh-ui-tidy: adds its plugin row to the web profile
+# roster. Reference it from the profile as:
+#   plugin_manager action=install_bundle target=<absolute package dir>
+- insert:
+    - id: ui-tidy
+      name: 'dsh-ui-tidy'
