@@ -1083,8 +1083,19 @@ header:has([class*="_titleRow"]) [aria-label*="View tabs"]{display:none !importa
  * hidden rather than removed - the title bar button still drives them, because a
  * hidden button can still be clicked programmatically.
  */
-header:has([class*="_titleRow"]) .mneme-pipe-trigger,
-header:has([class*="_titleRow"]) .dsh-sam-trigger{display:none !important}
+header:has([class*="_titleRow"]) .mneme-pipe-trigger{display:none !important}
+/*
+ * The subagent plugin's own counter stays: it is the only view of the
+ * current session's subagents, and the session row is where the user
+ * looks for it. It only needs the cluster's height and hover.
+ */
+header:has([class*="_titleRow"]) .dsh-sam-trigger{display:inline-flex !important;align-items:center !important;gap:4px !important;
+  height:24px !important;padding:0 8px !important;border-radius:6px !important;font-size:12px !important;line-height:1 !important;
+  border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28)) !important;background:transparent !important;
+  color:var(--dsw-alias-label-secondary,inherit) !important}
+header:has([class*="_titleRow"]) .dsh-sam-trigger:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.16)) !important;
+  color:var(--dsw-alias-label-primary,inherit) !important}
+header:has([class*="_titleRow"]) .dsh-sam-trigger .dsh-sam-icon{font-size:12px !important}
 /*
  * The background-task chip keeps its spinner and its count, but the sentence
  * around it ("1 个后台任务运行中") is wider than the room it leaves in the
@@ -1096,7 +1107,7 @@ header:has([class*="_titleRow"]) .Ag-ohG_trigger > svg:last-child{display:none !
  * rule below is the belt to that braces, in case the host re-renders the chip
  * between the observer's passes.
  */
-header:has([class*="_titleRow"]) .Ag-ohG_count{max-width:28px !important;overflow:hidden !important;text-overflow:clip !important}
+header:has([class*="_titleRow"]) .Ag-ohG_count{max-width:78px !important;overflow:hidden !important;text-overflow:clip !important}
 /*
  * The "open with" control is a split button: a wide default action and a narrow
  * chevron that opens the list of other programs. Together they cost 41px of the
@@ -1590,9 +1601,15 @@ const MODEL_CSS = `
 				 * attribute in place, so trusting the marker alone let the long
 				 * sentence come back.
 				 */
-				if (count.getAttribute("data-uidy-count") === number && text === number) continue;
+				const short = `${number} 个任务`;
+				const trigger = count.closest("[class*='_trigger']");
+				if (trigger !== null) {
+					trigger.setAttribute("title", `${number} 个后台任务运行中`);
+					trigger.setAttribute("aria-label", `${number} 个后台任务运行中`);
+				}
+				if (count.getAttribute("data-uidy-count") === number && text === short) continue;
 				count.setAttribute("data-uidy-count", number);
-				count.textContent = number;
+				count.textContent = short;
 			}
 		}
 
@@ -2461,8 +2478,12 @@ function styleMenuBar(bar, shadow) {
 
 		const CUSTOM_KEY = "dsh-ui-tidy.custom";
 
+/* The subagent plugin ships its own artwork; borrowing it keeps the two
+ * entries recognisably the same feature. */
+const SAM_ICON_MARKUP = '<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="21" width="12" height="12" rx="2.6" fill="url(#dsh_sam_art_leafA)" fill-opacity="0.72"></rect><rect x="12" y="14" width="13" height="13" rx="2.8" fill="url(#dsh_sam_art_leafB)" fill-opacity="0.8"></rect><rect x="18" y="6" width="14" height="14" rx="3" fill="url(#dsh_sam_art_leafC)" fill-opacity="0.9"></rect><path d="M25 12.2h-2.6" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="1.7" stroke-linecap="round"></path><path d="M24.6 16.4h-3.4" stroke="#FFFFFF" stroke-opacity="0.72" stroke-width="1.7" stroke-linecap="round"></path><defs><linearGradient id="dsh_sam_art_leafA" x1="12" y1="21" x2="12" y2="33" gradientUnits="userSpaceOnUse"><stop stop-color="#45E7A4"></stop><stop offset="1" stop-color="#05909D"></stop></linearGradient><linearGradient id="dsh_sam_art_leafB" x1="18.5" y1="14" x2="18.5" y2="27" gradientUnits="userSpaceOnUse"><stop stop-color="#7FD1FF"></stop><stop offset="1" stop-color="#2BA6C9"></stop></linearGradient><linearGradient id="dsh_sam_art_leafC" x1="25" y1="6" x2="25" y2="20" gradientUnits="userSpaceOnUse"><stop stop-color="#69B9FF"></stop><stop offset="1" stop-color="#324DE2"></stop></linearGradient></defs></svg>';
+
 const CUSTOM_ACTIONS = [
-	{ key: "subagent", label: "子代理", icon: "agents", selector: ".dsh-sam-trigger", run: () => runConversationAction(".dsh-sam-trigger") },
+	{ key: "subagent", label: "子代理", icon: "agents", markup: SAM_ICON_MARKUP, selector: ".dsh-sam-trigger", run: () => runConversationAction(".dsh-sam-trigger") },
 	{ key: "workflow", label: "工作流", icon: "flow", selector: ".mneme-pipe-trigger", run: () => runConversationAction(".mneme-pipe-trigger") },
 	{ key: "tasks", label: "后台任务", icon: "clock", selector: ".Ag-ohG_trigger", run: () => runConversationAction(".Ag-ohG_trigger") }
 ];
@@ -2491,6 +2512,15 @@ const CUSTOM_CSS = [
 	".uidy-set-row > select,.uidy-set-row > input[type=number]{height:26px;border-radius:6px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;font:inherit;font-size:13px;padding:0 6px;cursor:pointer}",
 	".uidy-set-row > input[type=number]{width:72px;cursor:text}",
 	".uidy-set-hint{opacity:.5;font-size:12px}",
+	"/* hover name for every cluster button: a glyph alone leaves newcomers guessing */",
+	".uidy-page{position:relative}",
+	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:1300}",
+	"/* the subagent drawer opens below the title bar and the session row, so its own close button never lands on the window controls */",
+	".dsh-sam-backdrop{top:84px !important}",
+	".dsh-sam-panel{height:100% !important;border-top-left-radius:12px}",
+	"/* the memory sheet: a sheet, not a takeover - the page behind stays legible */",
+	".mneme-backdrop{background:rgba(0,0,0,.14) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}",
+	".mneme-overlay{top:56px !important;border-radius:14px !important}",
 ].join("\n");
 
 function loadCustom() {
@@ -2536,6 +2566,9 @@ function readTriggerIcon(selector) {
 }
 
 function customGlyph(action) {
+	if (typeof action.markup === "string" && action.markup !== "") {
+		return h("span", { className: "uidy-page-ico", dangerouslySetInnerHTML: { __html: action.markup } });
+	}
 	const markup = action.selector === undefined ? null : readTriggerIcon(action.selector);
 	if (markup !== null) return h("span", { className: "uidy-page-ico", dangerouslySetInnerHTML: { __html: markup } });
 	return h(Icon, { name: action.icon });
@@ -2778,6 +2811,7 @@ const rows = store.get().toolRows;
 				type: "button",
 				className: iconOnly ? "uidy-page uidy-page-icon" : "uidy-page",
 				title: page.label,
+				"data-name": page.label,
 				"aria-label": page.label,
 				"aria-current": props.active ? "page" : undefined,
 				"data-active": props.active ? "true" : "false",
@@ -2832,6 +2866,7 @@ const rows = store.get().toolRows;
 					type: "button",
 					className: "uidy-page uidy-page-icon",
 					title: tt("dock.toggle"),
+					"data-name": tt("dock.toggle"),
 					"aria-label": tt("dock.toggle"),
 					"aria-haspopup": "menu",
 					"aria-expanded": open ? "true" : "false",
@@ -2886,6 +2921,7 @@ const rows = store.get().toolRows;
 							type: "button",
 							className: "uidy-page uidy-page-icon",
 							title: action.label,
+							"data-name": action.label,
 							"aria-label": action.label,
 							"data-fixed": "",
 							onClick: action.run
@@ -2902,6 +2938,7 @@ customGlyph(action)
 						type: "button",
 						className: "uidy-page uidy-page-icon",
 						title: "自定义顶栏功能",
+						"data-name": "自定义顶栏功能",
 						"aria-label": "自定义顶栏功能",
 						"aria-haspopup": "menu",
 						"aria-expanded": state.menu === "custom" ? "true" : "false",
@@ -2922,6 +2959,7 @@ customGlyph(action)
 						type: "button",
 						className: "uidy-page uidy-page-icon",
 						title: profile.name,
+						"data-name": profile.name || "账号",
 						"aria-label": profile.name,
 						"aria-haspopup": "menu",
 						"aria-expanded": state.menu === "account" ? "true" : "false",
@@ -3065,13 +3103,17 @@ customGlyph(action)
 			useLayout(() => {
 				const bar = clusterRef.current;
 				if (bar === null) return;
-				if (ui.align !== "center") {
-					bar.style.left = "";
-					return;
-				}
 				const span = window.innerWidth - readCaptionReserve();
 				const width = bar.getBoundingClientRect().width;
-				bar.style.left = `${Math.max(readClusterLimit(), Math.round((span - width) / 2))}px`;
+				if (ui.align === "center") {
+					bar.style.left = `${Math.max(readClusterLimit(), Math.round((span - width) / 2))}px`;
+					return;
+				}
+				if (ui.align === "right") {
+					bar.style.left = `${Math.max(readClusterLimit(), Math.round(span - width))}px`;
+					return;
+				}
+				bar.style.left = "";
 			}, [ui.align, fit, carried.length]);
 
 
@@ -3320,7 +3362,8 @@ customGlyph(action)
 							onChange: (event) => saveUi({ align: event.target.value })
 						},
 						h("option", { value: "left" }, "靠左（紧接菜单栏）"),
-						h("option", { value: "center" }, "居中")
+						h("option", { value: "center" }, "居中"),
+						h("option", { value: "right" }, "靠右（贴住窗口右侧）")
 					)
 				)
 			);
