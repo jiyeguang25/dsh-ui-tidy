@@ -439,7 +439,11 @@ window.__ModuleLoader__.load({
 					return;
 				}
 				const rect = target.getBoundingClientRect();
-				if (rect.left > 130 || rect.top > 130) return;
+				if (rect.left > 130 || rect.top > 130) {
+					document.documentElement.removeAttribute("data-uidy-account-pending");
+					return;
+				}
+				document.documentElement.removeAttribute("data-uidy-account-pending");
 				target.style.setProperty("position", "fixed", "important");
 				target.style.setProperty("left", "50%", "important");
 				target.style.setProperty("top", "50%", "important");
@@ -451,9 +455,17 @@ window.__ModuleLoader__.load({
 				target.style.setProperty("z-index", "1300", "important");
 			};
 			settle();
+			/* Never leave the app dimmed if the sheet never shows up. */
+			setTimeout(() => document.documentElement.removeAttribute("data-uidy-account-pending"), 1600);
 		}
 
 		function runHostAccountItem(label) {
+			/*
+			 * The shell opens its settings sheet anchored to the hidden sidebar footer, so
+			 * the first paint lands in the window corner. Hiding new sheets for the moment
+			 * it takes to centre them removes that flash.
+			 */
+			if (label === "设置") document.documentElement.setAttribute("data-uidy-account-pending", "");
 			const trigger = document.querySelector(ACCOUNT_TRIGGER_SELECTOR);
 			if (trigger === null) return;
 			try {
@@ -2552,14 +2564,20 @@ const CUSTOM_CSS = [
 	".uidy-set-row > input[type=number]{width:72px;cursor:text}",
 	".uidy-set-hint{opacity:.5;font-size:12px}",
 	"/* hover name for every cluster button: a glyph alone leaves newcomers guessing */",
+	/* The bubble hangs below the bar, so nothing on the way may clip it. */
+	".uidy-pages,.uidy-pages > *{overflow:visible !important}",
 	".uidy-page{position:relative}",
+	"/* While the shell's settings sheet is being centred it stays invisible for a beat. */",
+	"html[data-uidy-account-pending] [role=\"dialog\"],html[data-uidy-account-pending] [class*=\"_sheet\"]{opacity:0 !important}",
 	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:1300}",
 	"/* the subagent drawer opens below the title bar and the session row, so its own close button never lands on the window controls */",
 	".dsh-sam-backdrop{top:84px !important}",
 	".dsh-sam-panel{height:100% !important;border-top-left-radius:12px}",
 	"/* the memory sheet: a sheet, not a takeover - the page behind stays legible */",
 	".mneme-backdrop{background:rgba(0,0,0,.14) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}",
-	".mneme-overlay{top:56px !important;border-radius:14px !important}",
+	/* The shell sizes the sheet for a frame that starts at y=0; pinning only the top left the
+	 * lower half hanging outside the viewport. Both edges are pinned and the body scrolls. */
+	".mneme-overlay{top:56px !important;bottom:12px !important;height:auto !important;max-height:calc(100vh - 68px) !important;border-radius:14px !important;overflow:auto !important}",
 ].join("\n");
 
 function loadCustom() {
@@ -3173,7 +3191,25 @@ customGlyph(action)
 				),
 				h(
 					"div",
-					{ className: "uidy-pages", ref: clusterRef, "aria-label": tt("cluster.pages"), role: "group" },
+					{
+						className: "uidy-pages",
+						ref: (node) => {
+							clusterRef.current = node;
+							/*
+							 * Every button in the bar owes the pointer a name. Borrowed artwork and
+							 * buttons built elsewhere do not always carry one, so the label is copied
+							 * off whatever the button does have before the bubble is drawn.
+							 */
+							if (node === null) return;
+							for (const button of node.querySelectorAll("button")) {
+								if (button.hasAttribute("data-name")) continue;
+								const name = (button.getAttribute("title") || button.getAttribute("aria-label") || "").trim();
+								if (name !== "") button.setAttribute("data-name", name);
+							}
+						},
+						"aria-label": tt("cluster.pages"),
+						role: "group"
+					},
 					h(SessionsToggle, { key: "sessions-toggle", onReorder: reorder, firstKey: carried.length === 0 ? "" : carried[0].key }),
 					shown.map((page) => h(PageButton, { key: page.key, page, active: isActive(page), onReorder: reorder, iconOnly })),
 					h(CustomBar, { key: "custom-bar" }),
