@@ -14,11 +14,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yeguang225/dsh-ui-tidy.git"
+    "url": "git+https://github.com/jiyeguang25/dsh-ui-tidy.git"
   },
-  "homepage": "https://github.com/yeguang225/dsh-ui-tidy#readme",
+  "homepage": "https://github.com/jiyeguang25/dsh-ui-tidy#readme",
   "bugs": {
-    "url": "https://github.com/yeguang225/dsh-ui-tidy/issues"
+    "url": "https://github.com/jiyeguang25/dsh-ui-tidy/issues"
   },
   "files": [
     "index.js",

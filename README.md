@@ -46,7 +46,7 @@
 1. 打开 `设置 → 插件`，在「自定义插件市场」的**索引源**里加一条：
 
    ```
-   https://raw.githubusercontent.com/yeguang225/dsh-ui-tidy/main/market/index.json
+   https://raw.githubusercontent.com/jiyeguang25/dsh-ui-tidy/main/market/index.json
    ```
 
 2. 刷新索引，搜 `UI Tidy` / `dsh-ui-tidy`，点安装。
