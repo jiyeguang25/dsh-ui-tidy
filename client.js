@@ -465,7 +465,7 @@ window.__ModuleLoader__.load({
 			 * the first paint lands in the window corner. Hiding new sheets for the moment
 			 * it takes to centre them removes that flash.
 			 */
-			if (label === "设置") document.documentElement.setAttribute("data-uidy-account-pending", "");
+			document.documentElement.setAttribute("data-uidy-account-pending", "");
 			const trigger = document.querySelector(ACCOUNT_TRIGGER_SELECTOR);
 			if (trigger === null) return;
 			try {
@@ -482,6 +482,7 @@ window.__ModuleLoader__.load({
 				} catch (error) {
 					console.warn("[ui-tidy] account item failed:", error);
 				}
+				setTimeout(() => document.documentElement.removeAttribute("data-uidy-account-pending"), 120);
 				if (label === "设置") centerHostSettings();
 			}, 150);
 		}
@@ -2569,6 +2570,7 @@ const CUSTOM_CSS = [
 	".uidy-page{position:relative}",
 	"/* While the shell's settings sheet is being centred it stays invisible for a beat. */",
 	"html[data-uidy-account-pending] [role=\"dialog\"],html[data-uidy-account-pending] [class*=\"_sheet\"]{opacity:0 !important}",
+	"html[data-uidy-account-pending] [role=\"menu\"]:not(.uidy-menu){opacity:0 !important;pointer-events:none !important}",
 	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:1300}",
 	"/* the subagent drawer opens below the title bar and the session row, so its own close button never lands on the window controls */",
 	".dsh-sam-backdrop{top:84px !important}",
@@ -2577,7 +2579,7 @@ const CUSTOM_CSS = [
 	".mneme-backdrop{background:rgba(0,0,0,.14) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}",
 	/* The shell sizes the sheet for a frame that starts at y=0; pinning only the top left the
 	 * lower half hanging outside the viewport. Both edges are pinned and the body scrolls. */
-	".mneme-overlay{top:56px !important;bottom:12px !important;height:auto !important;max-height:calc(100vh - 68px) !important;border-radius:14px !important;overflow:auto !important}",
+	".mneme-overlay{top:50% !important;left:50% !important;right:auto !important;bottom:auto !important;transform:translate(-50%,-50%) !important;height:auto !important;max-height:calc(100vh - 96px) !important;width:min(1080px,calc(100vw - 96px)) !important;border-radius:14px !important;overflow:auto !important}",
 ].join("\n");
 
 function loadCustom() {
