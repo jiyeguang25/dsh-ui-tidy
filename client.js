@@ -638,7 +638,14 @@ window.__ModuleLoader__.load({
 		 * @returns the group elements.
 		 */
 		function modelGroups(menu) {
-			return Array.prototype.slice.call(menu.children).filter((child) => child.querySelector(MODEL_HEADING_SELECTOR) !== null);
+			const byHeading = Array.prototype.slice.call(menu.children).filter((child) => child.querySelector(MODEL_HEADING_SELECTOR) !== null);
+			if (byHeading.length > 0) return byHeading;
+			/*
+			 * The shell's class names are hashed and drift between releases. When the heading
+			 * class no longer matches, fall back to the shape every provider group has: a block
+			 * of model options. Without this the toggles silently decorate nothing.
+			 */
+			return Array.prototype.slice.call(menu.children).filter((child) => child.querySelectorAll(MODEL_ROW_SELECTOR).length > 0 || child.querySelectorAll('[role="menuitemradio"]').length > 1);
 		}
 
 		/**
@@ -1189,6 +1196,9 @@ const RIGHTBAR_CSS = "";
 /* the session browser needs room for the tree, not just for a command list */
 .uidy-menu-sessions{width:320px}
 .uidy-menu-sessions .uidy-sessions{max-height:min(46vh,380px)}
+.uidy-tools{display:flex;gap:6px;padding:2px 8px 4px}
+.uidy-tool{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}
+.uidy-tool:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.18))}
 .uidy-resize{position:absolute;top:0;right:0;bottom:0;width:6px;cursor:ew-resize;touch-action:none}
 .uidy-resize:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.18))}
 /*
@@ -1425,6 +1435,50 @@ const MODEL_CSS = `
 		 * @param host - the container to move it into.
 		 * @returns the moved node, or null when it is not mounted yet.
 		 */
+		/**
+		 * Open the shell's session view options (group by / order by / filter) from our bar.
+		 *
+		 * The shipped trigger lives inside the sidebar we removed, so it measures 0x0 and the
+		 * popover it opens anchors to that empty box: it lands at the window corner, partly
+		 * below the fold, where it cannot be used. The popover is recognised by its own option
+		 * labels rather than by a class name, because the shell's class names are hashed and
+		 * change between releases.
+		 * @param anchor - the element to hang the popover beneath.
+		 * @returns {void}
+		 */
+		function openHostViewOptions(anchor) {
+			const trigger = document.querySelector('[aria-label="视图选项"],[class*="GAkraW"] button[aria-label*="视图"]');
+			if (trigger === null) return;
+			trigger.click();
+			const findPopover = () => {
+				const nodes = [...document.querySelectorAll("body *")].filter((node) => {
+					if (node.offsetParent === null) return false;
+					const text = node.textContent || "";
+					return text.length > 0 && text.length < 600 && /分组方式|排序方式|筛选会话/.test(text);
+				});
+				if (nodes.length === 0) return null;
+				let node = nodes[nodes.length - 1];
+				while (node !== null && node !== document.body) {
+					if (getComputedStyle(node).position !== "static") return node;
+					node = node.parentElement;
+				}
+				return null;
+			};
+			const hang = () => {
+				const popover = findPopover();
+				if (popover === null) return;
+				const box = anchor.getBoundingClientRect();
+				const width = Math.min(popover.getBoundingClientRect().width || 240, window.innerWidth - 24);
+				popover.style.position = "fixed";
+				popover.style.zIndex = "1210";
+				popover.style.maxHeight = "min(60vh,520px)";
+				popover.style.overflow = "auto";
+				popover.style.left = Math.max(12, Math.min(box.left, window.innerWidth - width - 12)) + "px";
+				popover.style.top = Math.min(box.bottom + 6, window.innerHeight - 140) + "px";
+			};
+			for (const delay of [0, 40, 90, 160, 300, 600, 1000]) setTimeout(hang, delay);
+		}
+
 		function relocateSessions(host) {
 			const existing = host.querySelector('[class*="workspacesRoot"],[class*="treeRoot"],[role="tree"]');
 			if (existing !== null) return existing;
@@ -2229,6 +2283,23 @@ function styleMenuBar(bar, shadow) {
 						},
 						h("span", { className: "uidy-item-ico" }, h(Icon, { name: "plus" })),
 						h("span", null, tt("item.newSession"))
+					)
+				);
+				rows.push(
+					h(
+						"div",
+						{ key: "tools", className: "uidy-tools" },
+						h(
+							"button",
+							{
+								type: "button",
+								className: "uidy-tool",
+								title: tt("item.viewOptions"),
+								onClick: (event) => openHostViewOptions(event.currentTarget)
+							},
+							h(Icon, { name: "panel" }),
+							h("span", null, tt("item.viewOptions"))
+						)
 					)
 				);
 				rows.push(h("div", { key: "d0", className: "uidy-divider" }));
@@ -3491,6 +3562,33 @@ customGlyph(action)
 
 		function apply(ctx) {
 			rootCtx = ctx;
+			/* TEMP DIAG 2 — reporting session view options state */
+			try {
+				ctx.effect(() => {
+					const report = () => {
+						try {
+							const menu = document.querySelector(".uidy-menu-sessions");
+							const triggers = [...document.querySelectorAll("button")]
+								.filter((b) => /视图选项/.test((b.textContent || "") + (b.getAttribute("aria-label") || "") + (b.title || "")))
+								.map((b) => {
+									const r = b.getBoundingClientRect();
+									return { cls: String(b.className).slice(0, 50), aria: b.getAttribute("aria-label"), w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y) };
+								});
+							const pops = [...document.querySelectorAll('[role="menu"],[role="dialog"],[class*="popover"],[class*="Popover"]')]
+								.filter((n) => /排序方式|分组方式/.test(n.textContent || ""))
+								.map((n) => {
+									const r = n.getBoundingClientRect();
+									const cs = getComputedStyle(n);
+									return { cls: String(n.className).slice(0, 50), x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), pos: cs.position, disp: cs.display, vis: cs.visibility, parent: String(n.parentElement && n.parentElement.className).slice(0, 40) };
+								});
+							const payload = { menuOpen: menu !== null, tool: document.querySelector(".uidy-tool") !== null, triggers, pops };
+							fetch("http://127.0.0.1:8903/?tag=vo", { method: "POST", mode: "no-cors", body: JSON.stringify(payload) }).catch(() => {});
+						} catch (error) { /* never break the UI for a probe */ }
+					};
+					const timer = setInterval(report, 2000);
+					return () => clearInterval(timer);
+				}, "ui-tidy: TEMP DIAG 2");
+			} catch (error) { /* ignore */ }
 			/*
 			 * The sub-agent drawer dims the frame with its own backdrop, but that
 			 * backdrop only answers clicks on the strip beside the drawer. Any click
