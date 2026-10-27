@@ -3965,55 +3965,6 @@ customGlyph(action)
 
 		function apply(ctx) {
 			rootCtx = ctx;
-			/* TEMP DIAG 2 — reporting session view options state */
-			try {
-				ctx.effect(() => {
-					const report = () => {
-						try {
-							const menu = document.querySelector(".uidy-menu-sessions");
-							const triggers = [...document.querySelectorAll("button")]
-								.filter((b) => /视图选项/.test((b.textContent || "") + (b.getAttribute("aria-label") || "") + (b.title || "")))
-								.map((b) => {
-									const r = b.getBoundingClientRect();
-									return { cls: String(b.className).slice(0, 50), aria: b.getAttribute("aria-label"), w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y) };
-								});
-							const pops = [...document.querySelectorAll('[role="menu"],[role="dialog"],[class*="popover"],[class*="Popover"]')]
-								.filter((n) => /排序方式|分组方式/.test(n.textContent || ""))
-								.map((n) => {
-									const r = n.getBoundingClientRect();
-									const cs = getComputedStyle(n);
-									return { cls: String(n.className).slice(0, 50), x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), pos: cs.position, disp: cs.display, vis: cs.visibility, parent: String(n.parentElement && n.parentElement.className).slice(0, 40) };
-								});
-							const payload = { menuOpen: menu !== null, tool: document.querySelector(".uidy-tool") !== null, triggers, pops };
-							fetch("http://127.0.0.1:8903/?tag=vo", { method: "POST", mode: "no-cors", body: JSON.stringify(payload) }).catch(() => {});
-						} catch (error) { /* never break the UI for a probe */ }
-					};
-					const timer = setInterval(report, 2000);
-					return () => clearInterval(timer);
-				}, "ui-tidy: TEMP DIAG 2");
-			} catch (error) { /* ignore */ }
-			/* TEMP DIAG 3 — command channel */
-			try {
-				ctx.effect(() => {
-					let stopped = false;
-					const tick = async () => {
-						if (stopped) return;
-						try {
-							const res = await fetch("http://127.0.0.1:8903/cmd", { cache: "no-store" });
-							const expr = (await res.text()).trim();
-							if (expr !== "") {
-								let value;
-								try { value = await new Function("return (" + expr + ")")(); }
-								catch (error) { value = "ERR " + String((error && error.message) || error); }
-								fetch("http://127.0.0.1:8903/?tag=cmd", { method: "POST", body: JSON.stringify({ value }) }).catch(() => {});
-							}
-						} catch (error) { /* probe only */ }
-						if (!stopped) setTimeout(tick, 700);
-					};
-					const timer = setTimeout(tick, 900);
-					return () => { stopped = true; clearTimeout(timer); };
-				}, "ui-tidy: TEMP DIAG 3");
-			} catch (error) { /* ignore */ }
 			/*
 			 * The sub-agent drawer dims the frame with its own backdrop, but that
 			 * backdrop only answers clicks on the strip beside the drawer. Any click
