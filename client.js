@@ -365,8 +365,29 @@ window.__ModuleLoader__.load({
 		 * @param node - the element to press.
 		 * @returns {void}
 		 */
+		/*
+		 * A press is dispatched synchronously, so a listener that presses another
+		 * control which presses this one back recurses until the stack dies. That is
+		 * what took the whole entry down at boot (RangeError, web-boot log), so the
+		 * depth is capped: a loop becomes one warning instead of an unloadable plugin.
+		 */
+		let pressDepth = 0;
+
 		function pressElement(node) {
 			if (node === null || node === undefined) return;
+			if (pressDepth >= 2) {
+				console.warn("[ui-tidy] press recursion stopped at", node);
+				return;
+			}
+			pressDepth += 1;
+			try {
+				pressNode(node);
+			} finally {
+				pressDepth -= 1;
+			}
+		}
+
+		function pressNode(node) {
 			const box = node.getBoundingClientRect();
 			const init = {
 				bubbles: true,
@@ -1586,6 +1607,43 @@ const MODEL_CSS = `
 		 * @param beside - popup rect.
 		 * @returns {void}
 		 */
+		/*
+		 * An option inside the view-options panel opens its list from the hidden
+		 * sidebar trigger, so the list lands against the left edge and the choice has
+		 * to be made over there. Any small floating box of the shell's that is not
+		 * already beside the panel gets moved next to it, which keeps the whole
+		 * interaction in the place the user is looking at.
+		 * @param beside - popup rect, kept for symmetry with placeViewOptions.
+		 * @returns {void}
+		 */
+		function placeHostFlyout(beside) {
+			const panel = document.querySelector("[data-uidy-viewoptions]");
+			if (panel === null) return;
+			const anchor = panel.getBoundingClientRect();
+			if (anchor.width === 0 || anchor.height === 0) return;
+			const cabin = document.querySelector(".uidy-menu-sessions");
+			const cabinBox = cabin === null ? null : cabin.getBoundingClientRect();
+			const nodes = document.querySelectorAll("body > *, [role='menu'], [role='listbox'], [role='dialog']");
+			for (const node of nodes) {
+				if (!(node instanceof HTMLElement)) continue;
+				if (node === panel || node.hasAttribute("data-uidy-viewoptions")) continue;
+				if (node.closest(".uidy-pages, .uidy-menu, .uidy-bar, .uidy-account-head") !== null) continue;
+				if (cabinBox !== null && node.contains(cabin)) continue;
+				const style = getComputedStyle(node);
+				if (style.position !== "fixed" && style.position !== "absolute") continue;
+				if (style.visibility === "hidden" || style.display === "none") continue;
+				if (Number(style.zIndex) < 900) continue;
+				const box = node.getBoundingClientRect();
+				if (box.width === 0 || box.height === 0) continue;
+				if (box.width > 460 || box.height > 620) continue;
+				if (box.left > 140) continue;
+				node.style.setProperty("position", "fixed", "important");
+				node.style.setProperty("left", Math.round(anchor.right + 8) + "px", "important");
+				node.style.setProperty("top", Math.round(Math.max(48, Math.min(anchor.top, window.innerHeight - box.height - 12))) + "px", "important");
+				node.style.setProperty("z-index", "1215", "important");
+			}
+		}
+
 		function placeViewOptions(beside) {
 			const panel = findViewOptionsPanel();
 			if (panel === null) {
@@ -2416,7 +2474,10 @@ react.useEffect(() => {
 					const popup = trigger.closest(".uidy-menu-sessions");
 					if (popup === null) return;
 					const beside = popup.getBoundingClientRect();
-					for (const delay of [0, 40, 90, 160, 300, 600]) setTimeout(() => placeViewOptions(beside), delay);
+					for (const delay of [0, 40, 90, 160, 300, 600]) {
+						setTimeout(() => placeViewOptions(beside), delay);
+						setTimeout(() => placeHostFlyout(beside), delay);
+					}
 				};
 				document.addEventListener("click", onPress, false);
 				return () => {
@@ -3523,6 +3584,30 @@ customGlyph(action)
 		}
 
 		function OverlaySurface() {
+			/*
+			 * Release the boot curtain only once the shipped sidebar is really gone:
+			 * dropping it on mount would show the undressed shell for the frame or two
+			 * the sync pass needs to mark the frame, which is the flash itself.
+			 */
+			const releaseCurtain = react.useLayoutEffect ?? react.useEffect;
+			releaseCurtain(() => {
+				let tries = 0;
+				let timer = 0;
+				const tick = () => {
+					const dressed = document.querySelector("[" + FRAME_MARK + "]") !== null;
+					tries += 1;
+					if (dressed || tries > 90) {
+						document.documentElement.removeAttribute(BOOT_ATTR);
+						return;
+					}
+					timer = window.setTimeout(tick, 16);
+				};
+				tick();
+				return () => {
+					window.clearTimeout(timer);
+					document.documentElement.removeAttribute(BOOT_ATTR);
+				};
+			}, []);
 			return h(
 				react.Fragment,
 				null,
@@ -3999,6 +4084,29 @@ customGlyph(action)
 				"ui-tidy: mounts"
 			);
 		}
+
+/*
+ * The shell paints its own sidebar and title bar before this entry renders,
+ * which is the flash of the shipped UI on every launch. Holding the app back
+ * until this plugin has dressed the frame removes it; the timeout is the safety
+ * net so a plugin that never mounts can never leave a blank window.
+ */
+const BOOT_ATTR = "data-uidy-booting";
+
+function dressEarly() {
+	try {
+		const style = document.createElement("style");
+		style.setAttribute("data-uidy-early", "");
+		style.textContent = `html[${BOOT_ATTR}] #root{visibility:hidden !important}`;
+		document.head.appendChild(style);
+		document.documentElement.setAttribute(BOOT_ATTR, "");
+		setTimeout(() => document.documentElement.removeAttribute(BOOT_ATTR), 4000);
+	} catch (error) {
+		console.warn("[ui-tidy] early dress failed:", error);
+	}
+}
+
+dressEarly();
 
 		exports.apply = apply;
 		exports.inject = ["slots", "locale"];
