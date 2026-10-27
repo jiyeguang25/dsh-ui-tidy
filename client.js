@@ -1614,6 +1614,7 @@ const MODEL_CSS = `
 				}
 			}
 			for (const node of document.querySelectorAll("[data-uidy-viewoptions]")) node.removeAttribute("data-uidy-viewoptions");
+			for (const node of document.querySelectorAll("[data-uidy-flyout]")) node.removeAttribute("data-uidy-flyout");
 			viewOptionsHeld.clear();
 		}
 
@@ -1668,6 +1669,17 @@ const MODEL_CSS = `
 				if (box.width === 0 || box.height === 0) continue;
 				if (box.width > 460 || box.height > 620) continue;
 				if (box.left > 140) continue;
+				/*
+				 * The shell's app menu (「应用 / 编辑」) is a body-level fixed box with a high
+				 * z-index sitting near the left edge, so it passes every test above. Docking it
+				 * put the menu bar in the middle of the window instead of the title bar, so the
+				 * shell's own chrome — anything with a shadow root holding a menubar — is skipped
+				 * by marker, not by luck.
+				 */
+				if (node.hasAttribute("data-windows-menu")) continue;
+				if (node.shadowRoot !== null && node.shadowRoot !== undefined) continue;
+				holdStyles(node, ["position", "left", "top", "z-index"]);
+				node.setAttribute("data-uidy-flyout", "true");
 				node.style.setProperty("position", "fixed", "important");
 				node.style.setProperty("left", Math.round(anchor.right + 8) + "px", "important");
 				node.style.setProperty("top", Math.round(Math.max(48, Math.min(anchor.top, window.innerHeight - box.height - 12))) + "px", "important");
