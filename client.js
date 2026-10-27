@@ -355,15 +355,51 @@ window.__ModuleLoader__.load({
 			if (aria !== "") return aria;
 			return (row.getAttribute("title") || "").trim();
 		}
+		/**
+		 * Press an element the way a mouse does.
+		 *
+		 * The shell wires some controls to pointer events, and a bare click() on
+		 * those is silently ignored: the menu never opens and the control looks
+		 * broken. Sending the whole sequence costs nothing and satisfies both
+		 * kinds of handler.
+		 * @param node - the element to press.
+		 * @returns {void}
+		 */
+		function pressElement(node) {
+			if (node === null || node === undefined) return;
+			const box = node.getBoundingClientRect();
+			const init = {
+				bubbles: true,
+				cancelable: true,
+				composed: true,
+				clientX: box.left + box.width / 2,
+				clientY: box.top + box.height / 2,
+				button: 0,
+				buttons: 1,
+				pointerId: 1,
+				pointerType: "mouse",
+				isPrimary: true
+			};
+			try {
+				node.dispatchEvent(new PointerEvent("pointerdown", init));
+				node.dispatchEvent(new MouseEvent("mousedown", init));
+				node.dispatchEvent(new PointerEvent("pointerup", { ...init, buttons: 0 }));
+				node.dispatchEvent(new MouseEvent("mouseup", { ...init, buttons: 0 }));
+				node.dispatchEvent(new MouseEvent("click", { ...init, buttons: 0 }));
+			} catch (error) {
+				try {
+					node.click();
+				} catch {
+					console.warn("[ui-tidy] press failed:", error);
+				}
+			}
+		}
+
 		function clickToolRow(label) {
 			const rows = [...document.querySelectorAll(TOOL_ROW_SELECTOR + ',[data-mneme-overlay-opener],[data-dsh-novelforge-entry]')];
 			const row = rows.find((candidate) => readRowLabel(candidate) === label);
 			if (row === undefined) return;
-			try {
-				row.click();
-			} catch (error) {
-				console.warn("[ui-tidy] row click failed:", error);
-			}
+			pressElement(row);
 		}
 
 		/**
@@ -468,20 +504,12 @@ window.__ModuleLoader__.load({
 			document.documentElement.setAttribute("data-uidy-account-pending", "");
 			const trigger = document.querySelector(ACCOUNT_TRIGGER_SELECTOR);
 			if (trigger === null) return;
-			try {
-				trigger.click();
-			} catch (error) {
-				return;
-			}
+			pressElement(trigger);
 			setTimeout(() => {
 				const items = [...document.querySelectorAll('[role="menu"]:not(.uidy-menu) [role="menuitem"]')];
 				const target = items.find((node) => (node.textContent || "").includes(label));
 				if (target === undefined) return;
-				try {
-					target.click();
-				} catch (error) {
-					console.warn("[ui-tidy] account item failed:", error);
-				}
+				pressElement(target);
 				setTimeout(() => document.documentElement.removeAttribute("data-uidy-account-pending"), 120);
 				if (label === "设置") centerHostSettings();
 			}, 150);
@@ -661,6 +689,14 @@ function syncModelOptions(menu, firstGroup) {
 		box.setAttribute("data-uidy-opts", "");
 		container.insertBefore(box, container.firstChild);
 	}
+	/*
+	 * Rebuild only when a setting actually changed. Rebuilding on every pass
+	 * mutates the list, which wakes the observer that scheduled this pass, and the
+	 * menu would repaint in a tight loop.
+	 */
+	const signature = MODEL_TOGGLES.map((toggle) => (prefs[toggle.key] === true ? "1" : "0")).join("");
+	if (box.getAttribute("data-uidy-sig") === signature && box.childElementCount > 0) return;
+	box.setAttribute("data-uidy-sig", signature);
 	box.textContent = "";
 	const title = document.createElement("div");
 	title.className = "uidy-opts-title";
@@ -685,6 +721,9 @@ function syncModelOptions(menu, firstGroup) {
 			event.stopPropagation();
 			prefs[toggle.key] = prefs[toggle.key] !== true;
 			commitPrefs();
+			/* Storing the flag is not enough: the list must visibly change now. */
+			syncModelOptions(menu, firstGroup);
+			for (const delay of [30, 120, 320]) setTimeout(applyModelMenus, delay);
 		});
 		box.appendChild(row);
 	}
@@ -696,6 +735,21 @@ function syncModelOptions(menu, firstGroup) {
 				menus = Array.prototype.slice.call(document.querySelectorAll(MODEL_MENU_SELECTOR));
 			} catch {
 				return 0;
+			}
+			if (menus.length === 0) {
+				/*
+				 * The class in the selector is hashed by the bundler and drifts between
+				 * releases. A menu offering several radio options is the model list
+				 * whatever it is called, so fall back to that shape instead of going
+				 * quietly inert.
+				 */
+				try {
+					menus = Array.prototype.slice
+						.call(document.querySelectorAll('[role="menu"]'))
+						.filter((menu) => !menu.classList.contains("uidy-menu") && menu.querySelectorAll('[role="menuitemradio"],' + MODEL_ROW_SELECTOR).length > 1);
+				} catch {
+					return 0;
+				}
 			}
 			let touched = 0;
 			for (const menu of menus) {
@@ -1449,7 +1503,7 @@ const MODEL_CSS = `
 		function openHostViewOptions(anchor) {
 			const trigger = document.querySelector('[aria-label="视图选项"],[class*="GAkraW"] button[aria-label*="视图"]');
 			if (trigger === null) return;
-			trigger.click();
+			pressElement(trigger);
 			const findPopover = () => {
 				const nodes = [...document.querySelectorAll("body *")].filter((node) => {
 					if (node.offsetParent === null) return false;
