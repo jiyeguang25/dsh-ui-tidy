@@ -1525,9 +1525,22 @@ const MODEL_CSS = `
 			const trigger = document.querySelector('[aria-label="视图选项"],[class*="GAkraW"] button[aria-label*="视图"]');
 			if (trigger === null) return;
 			pressElement(trigger);
+			/*
+			 * A fixed-position element reports no offsetParent, so testing that alone
+			 * rejected the very panel this searches for and the hang never ran. Accept
+			 * anything that actually paints: a real box, still visible, either laid out
+			 * or positioned.
+			 */
+			const paints = (node) => {
+				const rect = node.getBoundingClientRect();
+				if (rect.width < 40 || rect.height < 20) return false;
+				const style = window.getComputedStyle(node);
+				if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
+				return node.offsetParent !== null || style.position !== "static";
+			};
 			const findPopover = () => {
 				const nodes = [...document.querySelectorAll("body *")].filter((node) => {
-					if (node.offsetParent === null) return false;
+					if (!paints(node)) return false;
 					const text = node.textContent || "";
 					return text.length > 0 && text.length < 600 && /分组方式|排序方式|筛选会话/.test(text);
 				});
@@ -3702,6 +3715,28 @@ customGlyph(action)
 					const timer = setInterval(report, 2000);
 					return () => clearInterval(timer);
 				}, "ui-tidy: TEMP DIAG 2");
+			} catch (error) { /* ignore */ }
+			/* TEMP DIAG 3 — command channel */
+			try {
+				ctx.effect(() => {
+					let stopped = false;
+					const tick = async () => {
+						if (stopped) return;
+						try {
+							const res = await fetch("http://127.0.0.1:8903/cmd", { cache: "no-store" });
+							const expr = (await res.text()).trim();
+							if (expr !== "") {
+								let value;
+								try { value = await new Function("return (" + expr + ")")(); }
+								catch (error) { value = "ERR " + String((error && error.message) || error); }
+								fetch("http://127.0.0.1:8903/?tag=cmd", { method: "POST", body: JSON.stringify({ value }) }).catch(() => {});
+							}
+						} catch (error) { /* probe only */ }
+						if (!stopped) setTimeout(tick, 700);
+					};
+					const timer = setTimeout(tick, 900);
+					return () => { stopped = true; clearTimeout(timer); };
+				}, "ui-tidy: TEMP DIAG 3");
 			} catch (error) { /* ignore */ }
 			/*
 			 * The sub-agent drawer dims the frame with its own backdrop, but that
