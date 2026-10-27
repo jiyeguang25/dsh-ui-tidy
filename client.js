@@ -3085,6 +3085,34 @@ const rows = store.get().toolRows;
 		 * menu bar, plus a little breathing room.
 		 * @returns the x coordinate in CSS pixels.
 		 */
+		/**
+		 * First x the title-bar cluster may occupy.
+		 *
+		 * The shell puts its own controls (the app menu, and the model picker beside it)
+		 * at the far left of the title bar. Left-aligning used to start at the menu edge
+		 * and land on top of the model picker, so measure every host control sharing the
+		 * top strip and clear the rightmost one.
+		 * @returns {number} a left offset in pixels.
+		 */
+		function readLeadingEdge() {
+			let edge = 0;
+			const strip = [document.querySelector('[data-windows-menu]')];
+			for (const node of document.querySelectorAll("[aria-label]")) {
+				const label = node.getAttribute("aria-label") || "";
+				if (!/选择模型|模型选择|切换模型/.test(label)) continue;
+				const rect = node.getBoundingClientRect();
+				if (rect.height === 0 || rect.top > 44) continue;
+				strip.push(node);
+			}
+			for (const node of strip) {
+				if (node === null) continue;
+				const rect = node.getBoundingClientRect();
+				if (rect.width === 0) continue;
+				edge = Math.max(edge, rect.right);
+			}
+			return Math.max(8, Math.round(edge) + 8);
+		}
+
 		function readClusterLimit() {
 			const host = document.querySelector("[data-windows-menu]");
 			const rect = host === null ? null : host.getBoundingClientRect();
@@ -3322,6 +3350,12 @@ customGlyph(action)
 			 * would look alive and do nothing. The stacking context is therefore
 			 * lifted instead: the host layer is raised above the foreign overlays,
 			 * and the cluster keeps living inside the React tree.
+			 *
+			 * The lift stops just short of the shell's own title bar strip: the app
+			 * menu (应用 / 编辑) is a fixed 1100 layer appended to <body>, so lifting
+			 * the host layer to 1101 painted the frame on top of it and the two menu
+			 * buttons vanished. 1090 is above every foreign overlay (999 / 1000) and
+			 * still below the app menu.
 			 */
 			const useLayout = react.useLayoutEffect ?? react.useEffect;
 			useLayout(() => {
@@ -3333,7 +3367,7 @@ customGlyph(action)
 					const style = getComputedStyle(parent);
 					if (style.position !== "static" && style.zIndex !== "auto") {
 						lifted.push({ node: parent, zIndex: parent.style.zIndex });
-						parent.style.zIndex = "1101";
+						parent.style.zIndex = "1090";
 					}
 					parent = parent.parentElement;
 				}
@@ -3424,7 +3458,7 @@ customGlyph(action)
 					bar.style.left = `${Math.max(readClusterLimit(), Math.round(span - width))}px`;
 					return;
 				}
-				bar.style.left = "";
+				bar.style.left = `${readLeadingEdge()}px`;
 			}, [ui.align, fit, carried.length]);
 
 
@@ -3598,7 +3632,13 @@ customGlyph(action)
 		 * ---------------------------------------------------------------- */
 
 		const UI_KEY = "dsh-ui-tidy.ui";
-		const UI_DEFAULTS = { iconOnly: true, align: "left", menuStart: 10, taskChip: "short" };
+		/**
+		 * Bumped whenever a stored default was wrong and must not survive.
+		 * Version 2: the bar used to default to left-aligned text buttons, which parked
+		 * it on top of the shell's model picker; those stored values are dropped.
+		 */
+		const UI_VERSION = 2;
+		const UI_DEFAULTS = { iconOnly: true, align: "right", menuStart: 10, taskChip: "short", v: UI_VERSION };
 
 		/**
 		 * Read the title-bar preferences.
@@ -3609,6 +3649,13 @@ customGlyph(action)
 				const raw = window.localStorage.getItem(UI_KEY);
 				const parsed = raw === null ? null : JSON.parse(raw);
 				if (parsed === null || typeof parsed !== "object") return { ...UI_DEFAULTS };
+				if (parsed.v !== UI_VERSION) {
+					/* A layout stored by an older build is not a user decision: drop it. */
+					try {
+						window.localStorage.setItem(UI_KEY, JSON.stringify({ ...UI_DEFAULTS }));
+					} catch { /* storage may be unavailable */ }
+					return { ...UI_DEFAULTS };
+				}
 				return { ...UI_DEFAULTS, ...parsed };
 			} catch {
 				return { ...UI_DEFAULTS };
