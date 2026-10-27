@@ -1502,70 +1502,142 @@ const MODEL_CSS = `
 		 * @param anchor - the element to hang the popover beneath.
 		 * @returns {void}
 		 */
-		/**
-		 * Raise an element above the app's own stacking contexts.
+				/*
+		 * The shell's own session-view-options panel.
 		 *
-		 * A host popover is appended inside the shell overlay layer, which is a
-		 * stacking context of its own: setting a big z-index on the popover alone
-		 * does nothing while an ancestor stays low. Lifting the chain is what
-		 * actually puts the panel on top.
-		 * @param node - the popover.
+		 * It is recognised by its own labels, because the shell's class names are
+		 * hashed and change between releases. Two rules matter here:
+		 *   - take the SMALLEST match, never walk up to an enclosing wrapper;
+		 *   - only restyle the panel itself (and a small positioned holder at most).
+		 * An earlier version walked up the tree and restyled a full-page container,
+		 * which is what wrecked the layout around the session popup.
+		 */
+		const VIEW_OPTIONS_LABELS = /分组方式|排序方式|筛选会话/;
+		const viewOptionsHeld = new Map();
+
+		/**
+		 * @returns {Element|null} the smallest element carrying the option labels.
+		 */
+		function findViewOptionsPanel() {
+			const labelled = (node) => node !== null && node !== undefined && VIEW_OPTIONS_LABELS.test(node.textContent || "");
+			/*
+			 * Its own class is the reliable handle: the panel is a menu surface whose
+			 * class carries "viewOptions". The earlier label-only search scanned every
+			 * element and matched this very conversation, whose text mentions those
+			 * labels, and restyling that container is what tore the layout apart.
+			 */
+			const byClass = document.querySelector('[class*="viewOptions"]');
+			if (labelled(byClass)) return byClass;
+			/*
+			 * Fallback for a renamed class: only real popovers, and the smallest one at
+			 * that. Ordinary page containers are never candidates.
+			 */
+			const candidates = [...document.querySelectorAll('[role="menu"],[role="dialog"],[role="listbox"]')].filter(labelled);
+			let best = null;
+			let bestArea = Infinity;
+			for (const node of candidates) {
+				const rect = node.getBoundingClientRect();
+				if (rect.width < 120 || rect.width > 520) continue;
+				if (rect.height < 60 || rect.height > 760) continue;
+				const style = window.getComputedStyle(node);
+				if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
+				const area = rect.width * rect.height;
+				if (area < bestArea) {
+					bestArea = area;
+					best = node;
+				}
+			}
+			return best;
+		}
+
+		/**
+		 * Undo everything this plugin wrote onto the shell's panel.
 		 * @returns {void}
 		 */
-		function liftAbove(node) {
-			let parent = node.parentElement;
-			while (parent !== null && parent !== document.body) {
-				const style = window.getComputedStyle(parent);
-				if (style.position !== "static") parent.style.setProperty("z-index", "1215", "important");
-				parent = parent.parentElement;
+		function releaseViewOptions() {
+			for (const [node, saved] of viewOptionsHeld) {
+				for (const [prop, value] of saved) {
+					if (value === "") node.style.removeProperty(prop);
+					else node.style.setProperty(prop, value);
+				}
+			}
+			for (const node of document.querySelectorAll("[data-uidy-viewoptions]")) node.removeAttribute("data-uidy-viewoptions");
+			viewOptionsHeld.clear();
+		}
+
+		/**
+		 * Remember a property before overwriting it, so it can be given back.
+		 * @param node - element about to be styled.
+		 * @param props - property names.
+		 * @returns {void}
+		 */
+		function holdStyles(node, props) {
+			if (!viewOptionsHeld.has(node)) viewOptionsHeld.set(node, new Map());
+			const saved = viewOptionsHeld.get(node);
+			for (const prop of props) if (!saved.has(prop)) saved.set(prop, node.style.getPropertyValue(prop));
+		}
+
+		/**
+		 * Dock the shell's view-options panel next to the session popup.
+		 *
+		 * Beside, not instead of: the popup keeps the list, the panel keeps the list's
+		 * options. Right of the popup when there is room, otherwise to its left, and
+		 * never off screen.
+		 * @param beside - popup rect.
+		 * @returns {void}
+		 */
+		function placeViewOptions(beside) {
+			const panel = findViewOptionsPanel();
+			if (panel === null) {
+				releaseViewOptions();
+				return;
+			}
+			const rect = panel.getBoundingClientRect();
+			if (rect.width >= window.innerWidth - 40 || rect.height >= window.innerHeight - 40) return;
+			const width = Math.min(rect.width || 260, window.innerWidth - 24);
+			holdStyles(panel, ["position", "left", "top", "z-index", "max-height", "overflow"]);
+			panel.setAttribute("data-uidy-viewoptions", "true");
+			panel.style.setProperty("position", "fixed", "important");
+			panel.style.setProperty("z-index", "1210", "important");
+			panel.style.setProperty("max-height", "min(60vh,520px)", "important");
+			panel.style.setProperty("overflow", "auto", "important");
+			const gap = 8;
+			const besideRect = beside === null || beside === undefined ? null : beside;
+			if (besideRect !== null && window.innerWidth - besideRect.right - gap - width >= 12) {
+				panel.style.setProperty("left", Math.round(besideRect.right + gap) + "px", "important");
+			} else if (besideRect !== null && besideRect.left - gap - width >= 12) {
+				panel.style.setProperty("left", Math.round(besideRect.left - gap - width) + "px", "important");
+			} else {
+				panel.style.setProperty("left", Math.round(Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))) + "px", "important");
+			}
+			const top = besideRect === null ? rect.top : besideRect.top;
+			panel.style.setProperty("top", Math.round(Math.max(44, Math.min(top, window.innerHeight - 160))) + "px", "important");
+			/*
+			 * A stack above the popup is enough; the panel lives in the same overlay
+			 * layer. Lifting the whole ancestor chain is what used to drag page
+			 * containers to the top of the app, so the holder is only raised when it
+			 * really is a small box.
+			 */
+			const holder = panel.parentElement;
+			if (holder !== null) {
+				const box = holder.getBoundingClientRect();
+				if (box.width <= 640 && box.height <= 900) {
+					holdStyles(holder, ["z-index"]);
+					holder.style.setProperty("z-index", "1209", "important");
+				}
 			}
 		}
 
+		/**
+		 * Open the shell's panel from code, then dock it.
+		 * @param anchor - popup rect or element.
+		 * @returns {void}
+		 */
 		function openHostViewOptions(anchor) {
 			const trigger = document.querySelector('[aria-label="视图选项"],[class*="GAkraW"] button[aria-label*="视图"]');
-			if (trigger === null) return;
-			pressElement(trigger);
-			/*
-			 * A fixed-position element reports no offsetParent, so testing that alone
-			 * rejected the very panel this searches for and the hang never ran. Accept
-			 * anything that actually paints: a real box, still visible, either laid out
-			 * or positioned.
-			 */
-			const paints = (node) => {
-				const rect = node.getBoundingClientRect();
-				if (rect.width < 40 || rect.height < 20) return false;
-				const style = window.getComputedStyle(node);
-				if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
-				return node.offsetParent !== null || style.position !== "static";
-			};
-			const findPopover = () => {
-				const nodes = [...document.querySelectorAll("body *")].filter((node) => {
-					if (!paints(node)) return false;
-					const text = node.textContent || "";
-					return text.length > 0 && text.length < 600 && /分组方式|排序方式|筛选会话/.test(text);
-				});
-				if (nodes.length === 0) return null;
-				let node = nodes[nodes.length - 1];
-				while (node !== null && node !== document.body) {
-					if (getComputedStyle(node).position !== "static") return node;
-					node = node.parentElement;
-				}
-				return null;
-			};
-			const hang = () => {
-				const popover = findPopover();
-				if (popover === null) return;
-				const box = typeof anchor.getBoundingClientRect === "function" ? anchor.getBoundingClientRect() : anchor;
-				const width = Math.min(popover.getBoundingClientRect().width || 240, window.innerWidth - 24);
-				popover.style.position = "fixed";
-				popover.style.zIndex = "1210";
-				popover.style.maxHeight = "min(60vh,520px)";
-				popover.style.overflow = "auto";
-				popover.style.left = Math.max(12, Math.min(box.left, window.innerWidth - width - 12)) + "px";
-				popover.style.top = Math.min(box.bottom + 6, window.innerHeight - 140) + "px";
-				liftAbove(popover);
-			};
-			for (const delay of [0, 40, 90, 160, 300, 600, 1000]) setTimeout(hang, delay);
+			if (trigger !== null) pressElement(trigger);
+			const beside = anchor !== null && typeof anchor.getBoundingClientRect === "function" ? anchor.getBoundingClientRect() : anchor;
+			for (const delay of [0, 40, 90, 160, 300, 600, 1000]) setTimeout(() => placeViewOptions(beside), delay);
 		}
 
 		function relocateSessions(host) {
@@ -2334,7 +2406,32 @@ function styleMenuBar(bar, shadow) {
 				};
 			}, [state.menu]);
 
-			if (state.menu === null || state.anchor === null) return null;
+react.useEffect(() => {
+				if (state.menu !== "sessions") return undefined;
+				const onPress = (event) => {
+					const node = event.target;
+					if (!(node instanceof Element)) return;
+					const trigger = node.closest('[aria-label="视图选项"]');
+					if (trigger === null) return;
+					const popup = trigger.closest(".uidy-menu-sessions");
+					if (popup === null) return;
+					const beside = popup.getBoundingClientRect();
+					for (const delay of [0, 40, 90, 160, 300, 600]) setTimeout(() => placeViewOptions(beside), delay);
+				};
+				document.addEventListener("click", onPress, false);
+				return () => {
+					document.removeEventListener("click", onPress, false);
+					releaseViewOptions();
+				};
+			}, [state.menu]);
+
+			/*
+			 * The popup already carries the shell's own "view options" button, so this
+			 * plugin adds no second one. The click is left alone - the shell opens its
+			 * panel - and the panel is docked beside the popup, so the list and its
+			 * options are on screen at the same time.
+			 */
+						if (state.menu === null || state.anchor === null) return null;
 
 			const menuId = state.menu;
 			const isActive = (panelId) =>
@@ -2372,32 +2469,6 @@ function styleMenuBar(bar, shadow) {
 						},
 						h("span", { className: "uidy-item-ico" }, h(Icon, { name: "plus" })),
 						h("span", null, tt("item.newSession"))
-					)
-				);
-				rows.push(
-					h(
-						"div",
-						{ key: "tools", className: "uidy-tools" },
-						h(
-							"button",
-							{
-								type: "button",
-								className: "uidy-tool",
-								title: tt("item.viewOptions"),
-								onClick: (event) => {
-									/*
-									 * Our own popup paints above the shell's, so it would hide the
-									 * panel it just opened. Closing it first leaves the options panel
-									 * alone on screen, still anchored where the button was.
-									 */
-									const box = event.currentTarget.getBoundingClientRect();
-									closeMenu();
-									setTimeout(() => openHostViewOptions(box), 140);
-								}
-							},
-							h(Icon, { name: "panel" }),
-							h("span", null, tt("item.viewOptions"))
-						)
 					)
 				);
 				rows.push(h("div", { key: "d0", className: "uidy-divider" }));
