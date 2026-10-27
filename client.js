@@ -858,6 +858,13 @@ function syncModelOptions(menu, firstGroup) {
 			 * list would then stay undecorated until the user restores it. A
 			 * timer has no such condition.
 			 */
+			const applyNow = () => {
+				try {
+					applyModelMenus();
+				} catch (error) {
+					console.warn("[ui-tidy] model menu decoration failed:", error);
+				}
+			};
 			const schedule = () => {
 				if (frame !== 0) return;
 				frame = setTimeout(() => {
@@ -873,38 +880,55 @@ function syncModelOptions(menu, firstGroup) {
 			const observer = new MutationObserver(schedule);
 			observer.observe(document.body, { childList: true, subtree: true });
 
-			const onClickCapture = (event) => {
+			/*
+			 * A press on a provider name has to be consumed before the host sees it:
+			 * its popover treats presses it did not expect as "outside" and closes the
+			 * whole model picker, which is the reported symptom. Swallowing
+			 * pointerdown and mousedown in the capture phase (so neither React's
+			 * delegated handlers nor any document listener run) and folding from there
+			 * keeps the list open.
+			 */
+			const toggleFromPress = (event) => {
 				const target = event.target;
 				if (target === null || typeof target.closest !== "function") return;
 				const heading = target.closest(MODEL_HEADING_SELECTOR);
 				if (heading === null) return;
-				const group = heading.closest(`[${MODEL_GROUP_ATTR}]`);
+				const group = heading.closest("[" + MODEL_GROUP_ATTR + "]");
 				if (group === null) return;
-				if (!prefs.collapse) return;
 				event.preventDefault();
-				event.stopPropagation();
+				event.stopImmediatePropagation();
+				if (event.type !== "pointerdown") return;
 				const key = group.getAttribute(MODEL_GROUP_ATTR);
 				if (key === null || key === "") return;
-				if (prefs.collapseAll) {
-					if (prefs.expanded[key] === true) delete prefs.expanded[key];
-					else prefs.expanded[key] = true;
-				} else if (prefs.collapsed[key] === true) delete prefs.collapsed[key];
-				else prefs.collapsed[key] = true;
-				commitPrefs();
 				/*
-				 * Re-decorate now that the fold state changed. Only a DOM mutation used
-				 * to schedule a pass, and this click is swallowed before the list can
-				 * change, so without this the arrow flipped while the rows stayed put -
-				 * one provider could not be opened on its own.
+				 * Clicking a provider name hides or shows exactly that provider. Every
+				 * provider starts folded, so the click always has a visible effect even
+				 * on a list that was left fully expanded.
 				 */
+				prefs.collapse = true;
+				prefs.collapseAll = true;
+				if (prefs.expanded[key] === true) delete prefs.expanded[key];
+				else prefs.expanded[key] = true;
+				commitPrefs();
+				applyNow();
 				schedule();
 			};
-
-			document.addEventListener("click", onClickCapture, true);
+			const swallowClick = (event) => {
+				const target = event.target;
+				if (target === null || typeof target.closest !== "function") return;
+				if (target.closest(MODEL_HEADING_SELECTOR) === null) return;
+				event.preventDefault();
+				event.stopImmediatePropagation();
+			};
+			document.addEventListener("pointerdown", toggleFromPress, true);
+			document.addEventListener("mousedown", toggleFromPress, true);
+			document.addEventListener("click", swallowClick, true);
 			schedule();
 			return () => {
 				observer.disconnect();
-				document.removeEventListener("click", onClickCapture, true);
+				document.removeEventListener("pointerdown", toggleFromPress, true);
+				document.removeEventListener("mousedown", toggleFromPress, true);
+				document.removeEventListener("click", swallowClick, true);
 				if (frame !== 0) clearTimeout(frame);
 			};
 		}
@@ -2473,6 +2497,12 @@ function styleMenuBar(bar, shadow) {
 
 react.useEffect(() => {
 				if (state.menu !== "sessions") return undefined;
+				let lastBeside = null;
+				const dock = () => {
+					if (lastBeside === null) return;
+					placeViewOptions(lastBeside);
+					placeHostFlyout(lastBeside);
+				};
 				const onPress = (event) => {
 					const node = event.target;
 					if (!(node instanceof Element)) return;
@@ -2480,16 +2510,31 @@ react.useEffect(() => {
 					if (trigger === null) return;
 					const popup = trigger.closest(".uidy-menu-sessions");
 					if (popup === null) return;
-					const beside = popup.getBoundingClientRect();
-					for (const delay of [0, 40, 90, 160, 300, 600]) {
-						setTimeout(() => placeViewOptions(beside), delay);
-						setTimeout(() => placeHostFlyout(beside), delay);
-					}
+					lastBeside = popup.getBoundingClientRect();
+					for (const delay of [0, 40, 90, 160, 300, 600]) setTimeout(dock, delay);
 				};
+				/*
+				 * The shell draws the panel at its own anchor first and only moves it on a
+				 * timer, which reads as a flash at the window edge before it lands beside the
+				 * popup. A mutation observer runs before the paint, so the dock happens in the
+				 * same frame the panel appears.
+				 */
+				const observer = new MutationObserver(() => {
+					if (lastBeside === null) return;
+					if (document.querySelector('[class*="viewOptions"]') === null) return;
+					dock();
+				});
+				observer.observe(document.body, { childList: true, subtree: true });
 				document.addEventListener("click", onPress, false);
 				return () => {
 					document.removeEventListener("click", onPress, false);
-					releaseViewOptions();
+					observer.disconnect();
+					/*
+					 * The docked styles are deliberately kept when the popup closes: releasing
+					 * them sent the panel back to the hidden sidebar anchor, which is the flash
+					 * to the window edge the user reported. The panel releases itself once it is
+					 * gone from the document.
+					 */
 				};
 			}, [state.menu]);
 
