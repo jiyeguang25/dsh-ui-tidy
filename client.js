@@ -891,6 +891,13 @@ function syncModelOptions(menu, firstGroup) {
 				} else if (prefs.collapsed[key] === true) delete prefs.collapsed[key];
 				else prefs.collapsed[key] = true;
 				commitPrefs();
+				/*
+				 * Re-decorate now that the fold state changed. Only a DOM mutation used
+				 * to schedule a pass, and this click is swallowed before the list can
+				 * change, so without this the arrow flipped while the rows stayed put -
+				 * one provider could not be opened on its own.
+				 */
+				schedule();
 			};
 
 			document.addEventListener("click", onClickCapture, true);

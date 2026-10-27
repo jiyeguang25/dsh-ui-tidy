@@ -1,6 +1,6 @@
 {
   "name": "dsh-ui-tidy",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Tidy the DSH Web GUI title bar: page shortcuts as icons, one settings page for the bar, a slimmer model picker, and no duplicate sidebar entries.",
   "type": "module",
   "main": "index.js",
