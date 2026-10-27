@@ -2510,8 +2510,16 @@ function styleMenuBar(bar, shadow) {
 react.useEffect(() => {
 				if (state.menu !== "sessions") return undefined;
 				let lastBeside = null;
+				/*
+				 * Read the popup live instead of trusting an earlier click: the shell opens this
+				 * panel on pointerdown, which lands before the click that records the anchor. A
+				 * cached anchor left the first frames undocked, and the panel was visible under
+				 * the popup at the left edge before jumping beside it — the flash the user saw.
+				 */
 				const dock = () => {
-					if (lastBeside === null) return;
+					const popup = document.querySelector(".uidy-menu-sessions");
+					if (popup === null) return;
+					lastBeside = popup.getBoundingClientRect();
 					placeViewOptions(lastBeside);
 					placeHostFlyout(lastBeside);
 				};
@@ -2532,14 +2540,15 @@ react.useEffect(() => {
 				 * same frame the panel appears.
 				 */
 				const observer = new MutationObserver(() => {
-					if (lastBeside === null) return;
 					if (document.querySelector('[class*="viewOptions"]') === null) return;
 					dock();
 				});
 				observer.observe(document.body, { childList: true, subtree: true });
 				document.addEventListener("click", onPress, false);
+				document.addEventListener("pointerdown", onPress, true);
 				return () => {
 					document.removeEventListener("click", onPress, false);
+					document.removeEventListener("pointerdown", onPress, true);
 					observer.disconnect();
 					/*
 					 * The docked styles are deliberately kept when the popup closes: releasing
