@@ -644,6 +644,8 @@ window.__ModuleLoader__.load({
 		 * hiding, so a host re-render simply re-decorates.
 		 * ---------------------------------------------------------------- */
 
+		/* The session browser's key in the saved bar order: not a panel, but a slot. */
+		const SESSION_SLOT_KEY = "__sessions__";
 		const MODEL_MENU_SELECTOR = '[role="menu"][class*="_groups"]';
 		const MODEL_GROUP_ATTR = "data-uidy-group";
 		const MODEL_HEADING_SELECTOR = '[class*="_heading"]';
@@ -1500,6 +1502,25 @@ const MODEL_CSS = `
 		 * @param anchor - the element to hang the popover beneath.
 		 * @returns {void}
 		 */
+		/**
+		 * Raise an element above the app's own stacking contexts.
+		 *
+		 * A host popover is appended inside the shell overlay layer, which is a
+		 * stacking context of its own: setting a big z-index on the popover alone
+		 * does nothing while an ancestor stays low. Lifting the chain is what
+		 * actually puts the panel on top.
+		 * @param node - the popover.
+		 * @returns {void}
+		 */
+		function liftAbove(node) {
+			let parent = node.parentElement;
+			while (parent !== null && parent !== document.body) {
+				const style = window.getComputedStyle(parent);
+				if (style.position !== "static") parent.style.setProperty("z-index", "1215", "important");
+				parent = parent.parentElement;
+			}
+		}
+
 		function openHostViewOptions(anchor) {
 			const trigger = document.querySelector('[aria-label="视图选项"],[class*="GAkraW"] button[aria-label*="视图"]');
 			if (trigger === null) return;
@@ -1521,7 +1542,7 @@ const MODEL_CSS = `
 			const hang = () => {
 				const popover = findPopover();
 				if (popover === null) return;
-				const box = anchor.getBoundingClientRect();
+				const box = typeof anchor.getBoundingClientRect === "function" ? anchor.getBoundingClientRect() : anchor;
 				const width = Math.min(popover.getBoundingClientRect().width || 240, window.innerWidth - 24);
 				popover.style.position = "fixed";
 				popover.style.zIndex = "1210";
@@ -1529,6 +1550,7 @@ const MODEL_CSS = `
 				popover.style.overflow = "auto";
 				popover.style.left = Math.max(12, Math.min(box.left, window.innerWidth - width - 12)) + "px";
 				popover.style.top = Math.min(box.bottom + 6, window.innerHeight - 140) + "px";
+				liftAbove(popover);
 			};
 			for (const delay of [0, 40, 90, 160, 300, 600, 1000]) setTimeout(hang, delay);
 		}
@@ -2349,7 +2371,16 @@ function styleMenuBar(bar, shadow) {
 								type: "button",
 								className: "uidy-tool",
 								title: tt("item.viewOptions"),
-								onClick: (event) => openHostViewOptions(event.currentTarget)
+								onClick: (event) => {
+									/*
+									 * Our own popup paints above the shell's, so it would hide the
+									 * panel it just opened. Closing it first leaves the options panel
+									 * alone on screen, still anchored where the button was.
+									 */
+									const box = event.currentTarget.getBoundingClientRect();
+									closeMenu();
+									setTimeout(() => openHostViewOptions(box), 140);
+								}
 							},
 							h(Icon, { name: "panel" }),
 							h("span", null, tt("item.viewOptions"))
@@ -3057,11 +3088,21 @@ const rows = store.get().toolRows;
 					"data-active": open ? "true" : "false",
 					"data-uidy-sessions-toggle": "",
 					"data-fixed": "",
+					draggable: true,
+					onDragStart: (event) => {
+						if (event.dataTransfer === null) return;
+						event.dataTransfer.setData("text/plain", SESSION_SLOT_KEY);
+						event.dataTransfer.effectAllowed = "move";
+					},
 					onDragOver: (event) => event.preventDefault(),
 					onDrop: (event) => {
+						if (event.dataTransfer === null) return;
 						event.preventDefault();
-						const from = event.dataTransfer === null ? "" : event.dataTransfer.getData("text/plain");
-						if (from !== "" && typeof props.onReorder === "function") props.onReorder(from, props.firstKey);
+						const from = event.dataTransfer.getData("text/plain");
+						if (from === "" || typeof props.onReorder !== "function") return;
+						/* Dropping onto the session button puts the dragged one behind it. */
+						if (props.nextKey !== "") props.onReorder(from, props.nextKey);
+						else props.onReorder(from, SESSION_SLOT_KEY);
 					},
 					onClick: (event) => toggleMenuAt(event.currentTarget, "sessions")
 				},
@@ -3174,7 +3215,9 @@ customGlyph(action)
 			 * official upgrade.
 			 */
 			const reorder = (from, to) => {
-				const next = pages.map((page) => page.key).filter((key) => key !== from);
+				const keys = pages.map((page) => page.key);
+				if (keys.indexOf(SESSION_SLOT_KEY) < 0) keys.push(SESSION_SLOT_KEY);
+				const next = keys.filter((key) => key !== from);
 				const at = next.indexOf(to);
 				if (at < 0) return;
 				next.splice(at, 0, from);
@@ -3307,6 +3350,17 @@ customGlyph(action)
 					: false;
 			/* Nothing spills any more: whatever does not fit is simply not carried. */
 			const shown = carried.slice(0, fit);
+			/*
+			 * The session browser is not a page, but it still obeys the arrangement:
+			 * its saved position decides where in the row it renders, so dragging it
+			 * moves it like any other button.
+			 */
+			const slotAt = (() => {
+				const saved = order.indexOf(SESSION_SLOT_KEY);
+				return saved < 0 ? 0 : Math.max(0, Math.min(saved, shown.length));
+			})();
+			const beforeSlot = shown.slice(0, slotAt);
+			const afterSlot = shown.slice(slotAt);
 
 			return h(
 				react.Fragment,
@@ -3337,8 +3391,14 @@ customGlyph(action)
 						"aria-label": tt("cluster.pages"),
 						role: "group"
 					},
-					h(SessionsToggle, { key: "sessions-toggle", onReorder: reorder, firstKey: carried.length === 0 ? "" : carried[0].key }),
-					shown.map((page) => h(PageButton, { key: page.key, page, active: isActive(page), onReorder: reorder, iconOnly })),
+					beforeSlot.map((page) => h(PageButton, { key: page.key, page, active: isActive(page), onReorder: reorder, iconOnly })),
+					h(SessionsToggle, {
+						key: "sessions-toggle",
+						onReorder: reorder,
+						firstKey: carried.length === 0 ? "" : carried[0].key,
+						nextKey: afterSlot.length === 0 ? "" : afterSlot[0].key
+					}),
+					afterSlot.map((page) => h(PageButton, { key: page.key, page, active: isActive(page), onReorder: reorder, iconOnly })),
 					h(CustomBar, { key: "custom-bar" }),
 				)
 			);
