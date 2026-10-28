@@ -4407,8 +4407,61 @@ customGlyph(action)
 			return h("div", { className: "uidy-set" }, rows);
 		}
 
+		/*
+		 * A plugin that vanishes is worse than a plugin that switches itself off:
+		 * when the top bar disappears the user cannot tell whether the shell or the
+		 * add-on broke, and the only escape looks like resetting the whole profile.
+		 * Two consecutive activation failures therefore keep the shell's own sidebar
+		 * intact and say so in the console.
+		 */
+		const SAFE_KEY = "dsh-ui-tidy.safeMode";
+		const FAIL_KEY = "dsh-ui-tidy.activationFailures";
+
+		function readSafeMode() {
+			try {
+				const param = new URLSearchParams(window.location.search).get("uidy");
+				if (param === "on") {
+					window.localStorage.removeItem(SAFE_KEY);
+					window.localStorage.removeItem(FAIL_KEY);
+					return "none";
+				}
+				if (param === "off" || param === "minimal") return param;
+				const stored = window.localStorage.getItem(SAFE_KEY);
+				if (stored === "off" || stored === "minimal") return stored;
+			} catch (error) {
+				console.warn("[ui-tidy] safe-mode probe failed:", error);
+			}
+			return "none";
+		}
+
+		function noteActivationFailure(error) {
+			try {
+				const count = Number(window.localStorage.getItem(FAIL_KEY) || "0") + 1;
+				window.localStorage.setItem(FAIL_KEY, String(count));
+				if (count >= 2) {
+					window.localStorage.setItem(SAFE_KEY, "minimal");
+					console.error("[ui-tidy] gave up the sidebar takeover after " + count + " failed activations; the shipped sidebar is back. Run localStorage.removeItem(\"dsh-ui-tidy.safeMode\"), or open the page with ?uidy=on, to retry once the cause is fixed.", error);
+				}
+			} catch (inner) {
+				console.warn("[ui-tidy] could not record the activation failure:", inner);
+			}
+		}
+
+		function clearActivationFailures() {
+			try {
+				window.localStorage.removeItem(FAIL_KEY);
+			} catch (error) {
+				console.warn("[ui-tidy] could not clear the failure counter:", error);
+			}
+		}
+
 		function apply(ctx) {
 			rootCtx = ctx;
+			const safeMode = readSafeMode();
+			if (safeMode === "off") {
+				console.warn("[ui-tidy] skipped entirely: safe mode is on (?uidy=off, or dsh-ui-tidy.safeMode=off).");
+				return;
+			}
 			/*
 			 * The sub-agent drawer dims the frame with its own backdrop, but that
 			 * backdrop only answers clicks on the strip beside the drawer. Any click
@@ -4496,7 +4549,11 @@ customGlyph(action)
 			ctx.effect(() => {
 				const sync = () => {
 					try {
-						removeShippedSidebar();
+						if (safeMode === "minimal") {
+							console.warn("[ui-tidy] minimal mode: leaving the shipped sidebar in place.");
+						} else {
+							removeShippedSidebar();
+						}
 					} catch (error) {
 						console.warn("[ui-tidy] sidebar removal failed:", error);
 					}
@@ -4582,8 +4639,10 @@ dressEarly();
 		exports.apply = function guardedApply(ctx) {
 			try {
 				apply(ctx);
+				clearActivationFailures();
 			} catch (error) {
 				console.error("[ui-tidy] activation failed; the shell keeps running:", error);
+				noteActivationFailure(error);
 			}
 		};
 		exports.inject = ["slots", "locale"];

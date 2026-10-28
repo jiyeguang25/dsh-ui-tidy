@@ -22,6 +22,7 @@ param(
     [ValidateSet('link', 'npm')]
     [string]$Mode = 'link',
     [switch]$DryRun,
+    [switch]$SkipVerify,
     [string]$DshHome = (Join-Path $env:USERPROFILE '.dsh')
 )
 
@@ -30,6 +31,23 @@ $pkgName = 'dsh-ui-tidy'
 $source = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $profileDir = Join-Path $DshHome "profiles\$Profile"
 $pkgJson = Join-Path $profileDir 'package.json'
+
+# Verify before writing, not after restarting: a plugin that cannot activate is
+# otherwise only discovered as "the top bar never appeared".
+if (-not $SkipVerify) {
+    $client = Join-Path $source 'client.js'
+    if (-not (Test-Path $client)) { throw "client.js not found next to scripts\: $client" }
+    node --check $client
+    if ($LASTEXITCODE -ne 0) { throw "client.js failed node --check; nothing was written." }
+    $smoke = Join-Path $source 'smoke\smoke-boot.mjs'
+    if (Test-Path $smoke) {
+        Push-Location $source
+        try { node smoke\smoke-boot.mjs | Select-Object -Last 1 }
+        finally { Pop-Location }
+        if ($LASTEXITCODE -ne 0) { throw "boot smoke failed; nothing was written." }
+    }
+    Write-Host "verify  : client.js parses, boot smoke passes"
+}
 
 Write-Host "profile : $profileDir"
 Write-Host "mode    : $Mode"

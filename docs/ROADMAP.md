@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | 一键注册 | `scripts/install.ps1`：自动定位 profile、备份 `package.json`、写入依赖与 bundle、提示「重启才生效」；`-Mode npm` 走 npm 包，`-Mode link` 走本地 checkout；`-DryRun` 只看不动 | ✅ 本轮已做 |
 | 一键撤销 | `scripts/uninstall.ps1`：只删依赖与 bundle 两个字段，不碰 `cordis.patch.yml`、不碰用户设置、不碰会话 | ✅ 本轮已做 |
-| 安装自检 | 安装后跑一次 `--check`：用 `node --check` + 启动冒烟确认这份代码能装进当前宿主，而不是重启后才发现进不去 | ⬜ 待做（把 `smoke/smoke-boot.mjs` 暴露成 `-Verify`） |
+| 安装自检 | 安装后跑一次检查：用 `node --check` + 启动冒烟确认这份代码能装进当前宿主，而不是重启后才发现进不去 | ✅ 默认执行，失败不写盘（`-SkipVerify` 可跳过） |
 | 发布到 npm | 现在只能 `link:`，官方市场按 npm 源装不到；发一次 npm 之后，安装就能缩减成 `pnpm add dsh-ui-tidy` + 加一行 bundle | ⬜ 需要 npm 账号 |
 
 ### 第 2 层：用得顺（减少「必须重启」与「必须找我」）
@@ -45,8 +45,8 @@
 
 | 项 | 做法 | 状态 |
 | --- | --- | --- |
-| 自杀开关 | 连续两次激活失败就把自己从 bundles 摘掉并留一条日志（用户不会因为一个 UI 插件失去整个界面） | ⬜ 待做（需要 boot 计数文件） |
-| 安全模式 | 启动参数 `--safe-mode` 或环境变量 `DSH_UI_TIDY=off` 时完全不接管 DOM | ⬜ 待做（成本低，收益高） |
+| 失败自降级 | 连续两次激活失败就自动降级到 minimal（保留顶栏、不再接管左侧栏）并在控制台说明原因 | ✅ 0.4.8 |
+| 安全模式 | 地址栏 `?uidy=off` / `?uidy=minimal` / `?uidy=on`，或 localStorage 同名开关 | ✅ 0.4.8 |
 | 崩溃一键复原 | 安装时留一份 profile `package.json` 快照，出问题一键还原 | 部分（install.ps1 已备份，缺还原命令） |
 
 ### 第 4 层：传得开（可分享，不是必需）

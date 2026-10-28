@@ -105,6 +105,18 @@ dsh plugin --profile desktop remove dsh-ui-tidy
 
 插件被卸载或禁用时会自己收尾：还原 `--dsh-windows-menu-start`、把被缩写的后台任务文案写回长句、移除注入的样式与席位注册。
 
+## 顶栏没出现 / 界面不对劲时，怎么自己救回来
+
+不用改任何 JSON，也不用重装。三档开关，写在地址栏或控制台里：
+
+| 你想做什么 | 做法 | 效果 |
+| --- | --- | --- |
+| 完全停用它 | 地址栏加 `?uidy=off`，或控制台执行 `localStorage["dsh-ui-tidy.safeMode"]="off"` 后刷新 | 插件一行都不跑，界面回到 DSH 原版 |
+| 只保留顶栏 | `?uidy=minimal` | 顶栏还在，但**不再接管左侧栏**（最常见的冲突就来自接管这一层） |
+| 恢复正常 | `?uidy=on` | 清掉上面两个标记并重试 |
+
+另外：**连续两次激活失败会自动降级到 minimal**，并在控制台打出 `[ui-tidy] gave up the sidebar takeover…`。看到这条就说明是插件自身出错，而不是你的界面坏了——先按上表恢复，再把控制台里那条 `activation failed` 的原文发出来即可定位。
+
 ## 风险与已知限制
 
 - 纯前端改造，只使用公开席位（`shell.overlay`、`conversation.header.leading`、`settings.section`）与公开服务（`slots`、`layout`、`locale`），不 patch 宿主代码。
