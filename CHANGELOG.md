@@ -5,6 +5,7 @@
 - Consecutive failures no longer look like a broken shell. Activation is counted; after two failures the plugin drops its own takeover (minimal mode) and says so in the console with the exact command to retry. A clean activation resets the counter.
 - `install.ps1` verifies before writing: `node --check` plus the boot smoke must pass, otherwise nothing is registered (`-SkipVerify` to bypass). The smoke suite grew to 16 checks, including safe-mode behaviour.
 - README documents how to get back to a working UI when the top bar does not appear, without editing any JSON.
+- `scripts/restore.ps1` lists the profile backups taken by install/uninstall and rolls one back (`-Latest`, `-Name`, `-DryRun`); the current file is copied aside first, so the rollback is itself reversible.
 
 ## 0.4.7
 - `scripts/install.ps1` / `scripts/uninstall.ps1`: register or remove the plugin by touching exactly two fields (`dependencies` and `dsh.profile.bundles`), with a `package.json` backup first and `-DryRun` to preview. Nothing else is modified.
