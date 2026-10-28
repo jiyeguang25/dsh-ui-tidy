@@ -997,13 +997,16 @@ function copyDiagnostics() {
 		const prefsStore = createStore({ revision: 0 });
 
 		/**
-		 * Persist the preferences, then re-apply the model-menu decoration.
+		 * Persist the preferences and notify subscribers.
+		 * Decoration is not forced from here: a full menu scan on every switch write
+		 * was pure waste while the picker is closed, and the observer decorates the
+		 * list the moment it opens. Call sites that need an immediate repaint (the
+		 * rows inside the picker) call it themselves.
 		 * @returns {void}
 		 */
 		function commitPrefs() {
 			writeState({ prefs });
 			prefsStore.bump();
-			applyModelMenus();
 		}
 
 		/**
@@ -1224,16 +1227,40 @@ function syncModelOptions(menu, firstGroup) {
 					console.warn("[ui-tidy] model menu decoration failed:", error);
 				}
 			};
+			/*
+			 * Only decorate while a model list is actually open. The observer fires on
+			 * every body mutation - a streaming answer mutates continuously - and a full
+			 * document scan on each of those is what made the picker feel heavy. The
+			 * probe is cheap and its result is cached until that element leaves the DOM.
+			 */
+			let openMenu = null;
+			const hasModelMenu = () => {
+				if (openMenu !== null && openMenu.isConnected) return true;
+				openMenu = null;
+				try {
+					openMenu = document.querySelector(MODEL_MENU_SELECTOR);
+					if (openMenu === null) {
+						openMenu =
+							Array.prototype.slice
+								.call(document.querySelectorAll('[role="menu"]'))
+								.filter((menu) => !menu.classList.contains("uidy-menu") && menu.querySelectorAll('[role="menuitemradio"]').length > 1)[0] ?? null;
+					}
+				} catch {
+					openMenu = null;
+				}
+				return openMenu !== null;
+			};
 			const schedule = () => {
 				if (frame !== 0) return;
 				frame = setTimeout(() => {
 					frame = 0;
+					if (!hasModelMenu()) return;
 					try {
 						applyModelMenus();
 					} catch (error) {
 						console.warn("[ui-tidy] model menu decoration failed:", error);
 					}
-				}, 16);
+				}, 100);
 			};
 
 			const observer = new MutationObserver(schedule);
@@ -1260,14 +1287,23 @@ function syncModelOptions(menu, firstGroup) {
 				const key = group.getAttribute(MODEL_GROUP_ATTR);
 				if (key === null || key === "") return;
 				/*
-				 * Clicking a provider name hides or shows exactly that provider. Every
-				 * provider starts folded, so the click always has a visible effect even
-				 * on a list that was left fully expanded.
+				 * Toggle exactly this provider, and respect the switches the user set.
+				 * This used to force collapse + collapseAll back on for every press,
+				 * which silently undid "默认折叠全部供应商" whenever the list was
+				 * clicked - the setting looked broken because something else kept
+				 * rewriting it.
 				 */
-				prefs.collapse = true;
-				prefs.collapseAll = true;
-				if (prefs.expanded[key] === true) delete prefs.expanded[key];
-				else prefs.expanded[key] = true;
+				if (!prefs.collapse) {
+					/* Nothing is folded by preference, so a press opens the list instead. */
+					prefs.collapsed[key] = false;
+					delete prefs.expanded[key];
+				} else if (prefs.collapseAll) {
+					if (prefs.expanded[key] === true) delete prefs.expanded[key];
+					else prefs.expanded[key] = true;
+				} else {
+					if (prefs.collapsed[key] === true) delete prefs.collapsed[key];
+					else prefs.collapsed[key] = true;
+				}
 				commitPrefs();
 				applyNow();
 				schedule();
@@ -1663,6 +1699,14 @@ const RIGHTBAR_CSS = "";
 /* the session browser needs room for the tree, not just for a command list */
 .uidy-menu-sessions{width:320px}
 .uidy-menu-sessions .uidy-sessions{max-height:min(46vh,380px)}
+/* the page/feature list carries a label AND an 打开 button, so it needs to be wider */
+.uidy-menu-custom{width:348px}
+/* selection is the row's own highlight - no tick mark - so it reads the same as the host menus */
+.uidy-item-on{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.14))}
+.uidy-item-on .uidy-item-ico{color:var(--dsw-alias-brand-primary,#4d6bfe)}
+.uidy-custom-run{margin-left:auto;flex:0 0 auto;height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}
+.uidy-custom-run:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.18))}
+.uidy-custom-hint{margin:6px 8px 2px;font-size:12px;line-height:1.5;opacity:.6;white-space:normal}
 .uidy-tools{display:flex;gap:6px;padding:2px 8px 4px}
 .uidy-tool{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}
 .uidy-tool:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.18))}
@@ -3007,7 +3051,7 @@ react.useEffect(() => {
 									);
 								},
 							},
-							h("span", { className: "uidy-item-ico" }, on ? h(Icon, { name: "check" }) : null),
+							h("span", { className: "uidy-item-ico" }),
 							h("span", null, page.label),
 							h(
 								"button",
@@ -3048,7 +3092,7 @@ react.useEffect(() => {
 									store.set({ custom: next });
 								},
 							},
-							h("span", { className: "uidy-item-ico" }, on ? h(Icon, { name: "check" }) : null),
+							h("span", { className: "uidy-item-ico" }),
 							h("span", null, action.label),
 							h(
 								"button",
@@ -3066,7 +3110,7 @@ react.useEffect(() => {
 						)
 					);
 				}
-				rows.push(h("div", { key: "custom-hint", className: "uidy-custom-hint" }, "勾选的会出现在顶栏右侧；未勾选的点「打开」直接使用。"));
+				rows.push(h("div", { key: "custom-hint", className: "uidy-custom-hint" }, "高亮的会出现在顶栏右侧；未高亮的点「打开」直接使用。"));
 			}
 			if (menuId === "model") {
 				rows.push(h("div", { key: "label-model", className: "uidy-group" }, tt("group.modelList")));
@@ -3080,13 +3124,18 @@ react.useEffect(() => {
 							type: "button",
 							role: "menuitemcheckbox",
 							"aria-checked": on,
-							className: "uidy-item",
+							className: on ? "uidy-item uidy-item-on" : "uidy-item",
 							onClick: () => {
 								prefs[toggle.key] = on !== true;
 								commitPrefs();
+								/* The list is already on screen, so repaint it now instead of
+								 * waiting for a mutation that this click never makes. */
+								applyModelMenus();
+								store.set({});
+								for (const delay of [40, 160]) setTimeout(applyModelMenus, delay);
 							}
 						},
-						h("span", { className: "uidy-item-ico" }, on ? h(Icon, { name: "check" }) : null),
+						h("span", { className: "uidy-item-ico" }),
 						h("span", null, tt(toggle.label))
 					)
 				);
@@ -3170,7 +3219,12 @@ react.useEffect(() => {
 				{
 					ref,
 					role: "menu",
-					className: menuId === "sessions" ? "uidy-menu uidy-menu-fixed uidy-menu-sessions" : "uidy-menu uidy-menu-fixed",
+					className:
+						menuId === "sessions"
+							? "uidy-menu uidy-menu-fixed uidy-menu-sessions"
+							: menuId === "custom"
+								? "uidy-menu uidy-menu-fixed uidy-menu-custom"
+								: "uidy-menu uidy-menu-fixed",
 					style: {
 						left: `${Math.round(clampAnchorLeft(wantedLeft, menuWidth))}px`,
 						top: `${Math.round(state.anchor.top)}px`
@@ -3292,15 +3346,24 @@ const CUSTOM_CSS = [
 	".uidy-account-head{display:flex;align-items:center;gap:8px;padding:4px 8px 6px;font-size:13px}",
 	".uidy-account-avatar{width:24px;height:24px;border-radius:50%;object-fit:cover;display:block}",
 	"/* the settings page: plain rows, no card chrome, the panel already has one */",
-	".uidy-set{padding:2px 2px 18px;font-size:14px;line-height:1.5}",
+	/* Keep the page at a readable measure instead of stretching labels across a wide panel. */
+	".uidy-set{padding:2px 2px 18px;font-size:14px;line-height:1.5;max-width:680px}",
 	".uidy-set-title{font-size:16px;font-weight:500;margin:0 0 4px}",
 	".uidy-set-desc{font-size:12px;line-height:1.6;opacity:.6;margin:0 0 14px}",
 	".uidy-set-head{font-size:12px;opacity:.6;margin:18px 0 6px}",
 	".uidy-set-row{display:flex;align-items:center;gap:8px;min-height:28px;margin:1px 0;cursor:pointer}",
-	".uidy-set-row > input[type=checkbox]{width:14px;height:14px;margin:0;flex:0 0 auto;accent-color:currentColor;cursor:pointer}",
+	/*
+	 * On/off rows carry their state as a row highlight, not as a ticked box: the
+	 * host's own menus mark the current item the same way, and a 14px checkbox
+	 * was the only control on the page that looked foreign.
+	 */
+	".uidy-set-check{display:flex;align-items:center;gap:8px;min-height:28px;margin:1px 0;padding:0 8px;border-radius:6px;cursor:pointer}",
+	".uidy-set-check:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14))}",
+	".uidy-set-check-on{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.14))}",
+	".uidy-set-check > input[type=checkbox]{display:none}",
 	".uidy-set-row > select,.uidy-set-row > input[type=number]{height:26px;border-radius:6px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;font:inherit;font-size:13px;padding:0 6px;cursor:pointer}",
 	".uidy-set-row > input[type=number]{width:72px;cursor:text}",
-	".uidy-set-hint{opacity:.5;font-size:12px}",
+	".uidy-set-hint{opacity:.5;font-size:12px;line-height:1.5;white-space:normal}",
 	".uidy-set-button{width:auto;align-self:flex-start;padding:0 10px;height:26px;border-radius:6px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}",
 	".uidy-set-button:hover{background:rgba(127,127,127,.16)}",
 	".uidy-set-diag{margin:6px 0 0;padding:8px 10px;max-height:220px;overflow:auto;border-radius:6px;background:rgba(127,127,127,.10);font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word}",
@@ -4220,17 +4283,19 @@ customGlyph(action)
 		}
 
 		/**
-		 * One checkbox row on the settings page.
+		 * One on/off row on the settings page. Selection is shown as a highlighted
+		 * row instead of a ticked checkbox, so it matches how the popup menus read.
 		 * @param props - `{ label, checked, onChange }`.
 		 * @returns the row.
 		 */
 		function SettingsCheck(props) {
+			const on = props.checked === true;
 			return h(
 				"label",
-				{ className: "uidy-set-row" },
+				{ className: on ? "uidy-set-check uidy-set-check-on" : "uidy-set-check", "data-on": on ? "true" : "false" },
 				h("input", {
 					type: "checkbox",
-					checked: props.checked === true,
+					checked: on,
 					onChange: (event) => props.onChange(event.target.checked)
 				}),
 				h("span", null, props.label)
