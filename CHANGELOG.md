@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.9
+- Hot reload, for real this time. `@deepseek-ai/dsh-hmr` is installed in the desktop profile and the `hmr` entry supplied by the base bundle is overridden by id in `cordis.patch.yml` (`disabled: false`, `root: [".", "<workspace>/dsh-plugins"]`). Editing `client.js` reloads in about two seconds; only assembly changes (package name, `dsh.profile.bundles`) still need a restart.
+- `scripts/enable-hmr.ps1`: idempotent helper that writes that override between markers, backs up the patch file first, and can undo (`-Disable`) or preview (`-DryRun`). It refuses to run when the `dsh-hmr` package is missing and prints the exact install command instead.
+- README and ROADMAP no longer say a restart is always required; both separate code edits (hot) from assembly edits (restart).
+- Published file list now includes `scripts/`, `docs/`, `smoke/` and this changelog — an npm install previously shipped no install script at all.
+
 ## 0.4.8
 - Safe mode. `?uidy=off` (or `localStorage["dsh-ui-tidy.safeMode"]="off"`) stops the plugin completely and leaves the shipped UI untouched; `?uidy=minimal` keeps the top bar but leaves the shipped sidebar in place; `?uidy=on` clears both flags and retries.
 - Consecutive failures no longer look like a broken shell. Activation is counted; after two failures the plugin drops its own takeover (minimal mode) and says so in the console with the exact command to retry. A clean activation resets the counter.

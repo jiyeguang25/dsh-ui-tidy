@@ -1,6 +1,6 @@
 {
   "name": "dsh-ui-tidy",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "Tidy the DSH Web GUI title bar: page shortcuts as icons, one settings page for the bar, a slimmer model picker, and no duplicate sidebar entries.",
   "type": "module",
   "main": "index.js",
@@ -25,7 +25,11 @@
     "client.js",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md",
+    "scripts",
+    "docs",
+    "smoke"
   ],
   "exports": {
     ".": "./index.js",
