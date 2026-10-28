@@ -235,6 +235,364 @@ window.__ModuleLoader__.load({
 			{ id: "bill", key: "panel.bill" }
 		];
 
+/*
+ * One versioned record for every user decision.
+ *
+ * Six localStorage keys grew up here one feature at a time - title bar layout,
+ * model menu preferences, page order, hidden pages, custom actions, dead
+ * panels - and two separate incidents came from exactly that: a stale key from
+ * an older build kept overriding a newer default, and nobody could tell which
+ * key won. One record, one version, one migration, one place to look.
+ */
+const STATE_KEY = "dsh-ui-tidy.state.v3";
+const STATE_VERSION = 3;
+
+/**
+ * The empty record: every field this plugin reads.
+ * @returns a fresh state.
+ */
+function emptyState() {
+	return { version: STATE_VERSION, ui: {}, prefs: {}, order: [], hidden: [], custom: [], dead: [] };
+}
+
+/**
+ * Read one legacy key so an older build still finds its settings.
+ * @param key - the legacy storage key.
+ * @returns the parsed value, or null.
+ */
+function readLegacy(key) {
+	try {
+		const raw = window.localStorage.getItem(key);
+		return raw === null ? null : JSON.parse(raw);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Fold the legacy keys into the record, once.
+ * The legacy keys are left in place on purpose: rolling back to an older build
+ * must still find the settings it wrote.
+ * @returns the migrated state.
+ */
+function migrateState() {
+	const next = emptyState();
+	const keysOnly = (value) => (Array.isArray(value) ? value.filter((key) => typeof key === "string") : []);
+	next.order = keysOnly(readLegacy("dsh-ui-tidy.pageOrder"));
+	next.hidden = keysOnly(readLegacy("dsh-ui-tidy.hidden"));
+	next.custom = keysOnly(readLegacy("dsh-ui-tidy.custom"));
+	next.dead = keysOnly(readLegacy("dsh-ui-tidy.deadPanels"));
+	const prefs = readLegacy("dsh-ui-tidy.prefs.v2");
+	if (prefs !== null && typeof prefs === "object" && !Array.isArray(prefs)) next.prefs = prefs;
+	const ui = readLegacy("dsh-ui-tidy.ui");
+	/* A layout stored by an older build is not a user decision: drop it. */
+	if (ui !== null && typeof ui === "object" && !Array.isArray(ui) && ui.v === 2) next.ui = ui;
+	return next;
+}
+
+/**
+ * Write the record without reading it first (keeps readState non-recursive).
+ * @param next - the full record.
+ */
+function persistState(next) {
+	try {
+		window.localStorage.setItem(STATE_KEY, JSON.stringify(next));
+	} catch (error) {
+		console.warn("[ui-tidy] state not persisted:", error);
+	}
+}
+
+/**
+ * The current record, migrated on first read.
+ * @returns the state.
+ */
+function readState() {
+	try {
+		const stored = window.localStorage.getItem(STATE_KEY);
+		if (stored !== null) {
+			const parsed = JSON.parse(stored);
+			if (parsed !== null && typeof parsed === "object" && parsed.version === STATE_VERSION) {
+				return { ...emptyState(), ...parsed, version: STATE_VERSION };
+			}
+		}
+		const migrated = migrateState();
+		persistState(migrated);
+		return migrated;
+	} catch (error) {
+		console.warn("[ui-tidy] state unreadable:", error);
+		return emptyState();
+	}
+}
+
+/**
+ * Merge a patch into the record.
+ * @param patch - the fields to change.
+ * @returns the stored state.
+ */
+function writeState(patch) {
+	const next = { ...readState(), ...patch, version: STATE_VERSION };
+	persistState(next);
+	return next;
+}
+
+/** Read a record field, falling back when it is missing or of the wrong shape. */
+function readField(name, fallback) {
+	const value = readState()[name];
+	if (value === null || value === undefined) return fallback;
+	if (Array.isArray(fallback)) return Array.isArray(value) ? value : fallback;
+	if (typeof fallback === "object") return typeof value === "object" && !Array.isArray(value) ? value : fallback;
+	return value;
+}
+/*
+ * Every hook into the host UI, in one table.
+ *
+ * The class names below are build hashes ('_5Qcc8a_trigger', 'Ag-ohG_count'):
+ * an upgrade renames them and the feature quietly stops working, with no error
+ * anywhere. Each hook therefore lists its hash first and a structural guess
+ * second, resolves on demand, and records which candidate fired - a miss then
+ * shows up as data in the diagnostics report instead of as "it does nothing".
+ */
+const SELECTOR_GROUPS = {
+	panelRows: ['[class*="panelList"] > button[class*="panelRow"]', 'nav[aria-label] > button[class*="panelRow"]'],
+	accountTrigger: [
+		'[class*="_5Qcc8a_trigger"]',
+		'[data-slot="sidebar.footer.action"] ~ * button[aria-label="账号菜单"]',
+		'button[aria-label="账号菜单"]',
+		'button[aria-label="Account menu"]',
+	],
+	taskChip: ['[class*="Ag-ohG_trigger"]', 'header button[aria-haspopup][aria-label*="后台任务"]'],
+	taskChipCount: ['[class*="Ag-ohG_count"]', '[class*="Ag-ohG_trigger"] span'],
+	viewOptions: ['[class*="viewOptions"]'],
+	subagentTrigger: ['.dsh-sam-trigger'],
+	workflowTrigger: ['.mneme-pipe-trigger'],
+	modelMenu: ['[role="menu"][class*="_groups"]'],
+	modelHeading: ['[class*="_heading"]'],
+	modelRow: ['[class*="_modelOption"]'],
+};
+
+/** Which candidate last matched (or missed) for each hook. */
+const selectorHealth = new Map();
+
+/**
+ * Resolve one hook against the live document.
+ * @param name - the group name.
+ * @param scope - optional element to search inside.
+ * @returns the selector that matched, or null when every candidate missed.
+ */
+function resolveSelector(name, scope) {
+	const group = SELECTOR_GROUPS[name];
+	if (group === undefined) return null;
+	const root = scope === undefined || scope === null ? document : scope;
+	for (const selector of group) {
+		try {
+			if (root.querySelector(selector) !== null) {
+				selectorHealth.set(name, { selector, ok: true });
+				return selector;
+			}
+		} catch {
+			/* an unusable candidate is just skipped */
+		}
+	}
+	selectorHealth.set(name, { selector: group[0], ok: false });
+	return null;
+}
+
+/**
+ * Every match of the first candidate that hits anything.
+ * @param name - the group name.
+ * @param scope - optional element to search inside.
+ * @returns the matched elements.
+ */
+function queryAll(name, scope) {
+	const selector = resolveSelector(name, scope);
+	if (selector === null) return [];
+	const root = scope === undefined || scope === null ? document : scope;
+	try {
+		return [...root.querySelectorAll(selector)];
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * The first match of the first candidate that hits anything.
+ * @param name - the group name.
+ * @param scope - optional element to search inside.
+ * @returns the element, or null.
+ */
+function queryOne(name, scope) {
+	const selector = resolveSelector(name, scope);
+	if (selector === null) return null;
+	const root = scope === undefined || scope === null ? document : scope;
+	try {
+		return root.querySelector(selector);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Which host hooks resolve right now.
+ * @returns a plain object, safe to log or store.
+ */
+function readSelectorHealth() {
+	const out = {};
+	for (const name of Object.keys(SELECTOR_GROUPS)) {
+		const known = selectorHealth.get(name);
+		out[name] = known === undefined ? null : known.ok ? known.selector : false;
+	}
+	return out;
+}
+/**
+ * A read-only snapshot of everything this plugin believes about the host.
+ *
+ * Nothing here dispatches events or changes the page: it only reads the record,
+ * the selector health and the discovered pages, so the report can be produced
+ * while the user is working.
+ * @returns a plain object, safe to copy or log.
+ */
+function readPluginHealth() {
+	const selectors = readSelectorHealth();
+	const names = Object.keys(selectors);
+	const ok = names.filter((name) => selectors[name] !== false && selectors[name] !== null).length;
+	const state = readState();
+	const boot = typeof window.__DSH_BOOT__ === "object" && window.__DSH_BOOT__ !== null ? window.__DSH_BOOT__ : null;
+	let pages = -1;
+	try {
+		pages = readPages().length;
+	} catch (error) {
+		console.warn("[ui-tidy] page discovery failed:", error);
+	}
+	return {
+		stateVersion: STATE_VERSION,
+		hostRev: boot === null ? null : boot.rev,
+		hostEntries: boot === null || !Array.isArray(boot.entries) ? null : boot.entries.length,
+		hooksOk: ok,
+		hooksTotal: names.length,
+		selectors,
+		pages,
+		order: state.order,
+		hidden: state.hidden,
+		dead: state.dead,
+		custom: state.custom,
+		ui: state.ui,
+		prefs: state.prefs,
+	};
+}
+
+/**
+ * Put the diagnostics snapshot on the clipboard, with a console copy as the
+ * fallback when the clipboard is unavailable.
+ * @returns the text that was produced.
+ */
+function copyDiagnostics() {
+	const payload = JSON.stringify(readPluginHealth(), null, 1);
+	try {
+		console.log("[ui-tidy] diagnostics", payload);
+	} catch {
+		/* a missing console is not worth a failure */
+	}
+	try {
+		if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === "function") {
+			navigator.clipboard.writeText(payload);
+		}
+	} catch (error) {
+		console.warn("[ui-tidy] diagnostics not copied:", error);
+	}
+	return payload;
+}
+		const DEAD_PANELS_KEY = "dsh-ui-tidy.deadPanels";
+
+		/**
+		 * The client plugins the host has actually loaded.
+		 *
+		 * A panel that registers into the main slot without drawing a sidebar row
+		 * (the usage panel does) leaves no DOM mark, so the module manifest is the
+		 * only live proof that the page still exists. Uninstalling that plugin drops
+		 * its entry, and the button goes with it.
+		 * @returns the loaded entry ids, lower-cased.
+		 */
+		function readBootEntryIds() {
+			try {
+				const boot = window.__DSH_BOOT__;
+				if (boot === null || boot === undefined) return [];
+				const ids = [];
+				const list = Array.isArray(boot.entries) ? boot.entries : [];
+				for (const entry of list) {
+					const id = typeof entry === "string" ? entry : entry !== null && typeof entry === "object" ? entry.id : null;
+					if (typeof id === "string" && id !== "") ids.push(id.toLowerCase());
+				}
+				const batches = Array.isArray(boot.batches) ? boot.batches : [];
+				for (const batch of batches) {
+					const name = typeof batch === "string" ? batch : batch !== null && typeof batch === "object" ? batch.id ?? batch.name : null;
+					if (typeof name === "string" && name !== "") ids.push(name.toLowerCase());
+				}
+				return ids;
+			} catch (error) {
+				console.warn("[ui-tidy] boot entries unreadable:", error);
+				return [];
+			}
+		}
+
+		/**
+		 * Whether a shipped-but-rowless panel still has its plugin loaded.
+		 * Without the manifest the answer is yes: a missing manifest must never
+		 * empty the bar.
+		 * @param panelId - the main panel id.
+		 * @returns true when a loaded entry name mentions the id.
+		 */
+		function panelProviderLoaded(panelId) {
+			const id = String(panelId).toLowerCase();
+			if (id === "") return true;
+			const entries = readBootEntryIds();
+			if (entries.length === 0) return true;
+			return entries.some((entry) => entry === id || entry.includes(id));
+		}
+
+		/**
+		 * Pages that answered a click with nothing at all.
+		 * @returns the panel ids.
+		 */
+		function loadDeadPanels() {
+			return readField("dead", []);
+		}
+
+		/**
+		 * Remember that a page no longer switches, so its button can be dropped.
+		 * @param panelId - the main panel id.
+		 * @returns void.
+		 */
+		function markPanelDead(panelId) {
+			const id = String(panelId);
+			const dead = loadDeadPanels();
+			if (dead.includes(id)) return;
+			dead.push(id);
+			writeState({ dead });
+			/* Bumping the store makes the cluster re-read the page list. */
+			store.set({});
+		}
+
+		/**
+		 * Watch the panel the host reports after a page button was pressed and
+		 * mark the page dead when the switch did not happen.
+		 * @param panelId - the panel the button asked for.
+		 * @returns void.
+		 */
+		function verifyPanel(panelId) {
+			if (panelId === null || panelId === undefined) return;
+			const wanted = String(panelId);
+			window.setTimeout(() => {
+				let active = null;
+				try {
+					active = readActivePanelId();
+				} catch (error) {
+					return;
+				}
+				if (active === null || String(active) === wanted) return;
+				markPanelDead(wanted);
+			}, 500);
+		}
+
 		/**
 		 * Start a new session.
 		 * @returns {void}
@@ -417,7 +775,7 @@ window.__ModuleLoader__.load({
 		}
 
 		function clickToolRow(label) {
-			const rows = [...document.querySelectorAll(TOOL_ROW_SELECTOR + ',[data-mneme-overlay-opener],[data-dsh-novelforge-entry]')];
+			const rows = [...queryAll("panelRows"), ...document.querySelectorAll("[data-mneme-overlay-opener],[data-dsh-novelforge-entry]")];
 			const row = rows.find((candidate) => readRowLabel(candidate) === label);
 			if (row === undefined) return;
 			pressElement(row);
@@ -452,7 +810,7 @@ window.__ModuleLoader__.load({
 		 * @returns `{ avatar, name }`.
 		 */
 		function readAccountProfile() {
-			const trigger = document.querySelector(ACCOUNT_TRIGGER_SELECTOR);
+			const trigger = queryOne("accountTrigger");
 			if (trigger === null) return { avatar: null, name: tt("menu.account") };
 			const image = trigger.querySelector("img");
 			const label = trigger.querySelector('[class*="_label"]');
@@ -523,7 +881,7 @@ window.__ModuleLoader__.load({
 			 * it takes to centre them removes that flash.
 			 */
 			document.documentElement.setAttribute("data-uidy-account-pending", "");
-			const trigger = document.querySelector(ACCOUNT_TRIGGER_SELECTOR);
+			const trigger = queryOne("accountTrigger");
 			if (trigger === null) return;
 			pressElement(trigger);
 			setTimeout(() => {
@@ -565,7 +923,7 @@ window.__ModuleLoader__.load({
 		 * @returns {void}
 		 */
 		function clickAccountTrigger() {
-			const trigger = document.querySelector(ACCOUNT_TRIGGER_SELECTOR);
+			const trigger = queryOne("accountTrigger");
 			if (trigger === null) {
 				console.warn("[ui-tidy] account trigger not found");
 				return;
@@ -613,20 +971,13 @@ window.__ModuleLoader__.load({
 		 */
 		function loadPrefs() {
 			const base = { collapse: true, merge: true, dedupe: true, collapseAll: true, collapsed: {}, expanded: {} };
-			try {
-				const raw = window.localStorage.getItem(PREFS_KEY);
-				if (raw === null) return base;
-				const parsed = JSON.parse(raw);
-				if (parsed === null || typeof parsed !== "object") return base;
-				base.collapse = parsed.collapse !== false;
-				base.merge = parsed.merge !== false;
-				base.dedupe = parsed.dedupe !== false;
-				base.collapseAll = parsed.collapseAll !== false;
-				base.collapsed = parsed.collapsed !== null && typeof parsed.collapsed === "object" ? parsed.collapsed : {};
-				base.expanded = parsed.expanded !== null && typeof parsed.expanded === "object" ? parsed.expanded : {};
-			} catch (error) {
-				console.warn("[ui-tidy] preferences unreadable:", error);
-			}
+			const parsed = readField("prefs", {});
+			base.collapse = parsed.collapse !== false;
+			base.merge = parsed.merge !== false;
+			base.dedupe = parsed.dedupe !== false;
+			base.collapseAll = parsed.collapseAll !== false;
+			base.collapsed = parsed.collapsed !== null && typeof parsed.collapsed === "object" ? parsed.collapsed : {};
+			base.expanded = parsed.expanded !== null && typeof parsed.expanded === "object" ? parsed.expanded : {};
 			return base;
 		}
 
@@ -638,12 +989,8 @@ window.__ModuleLoader__.load({
 		 * @returns {void}
 		 */
 		function commitPrefs() {
-			try {
-				window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
-			} catch (error) {
-				console.warn("[ui-tidy] preferences not persisted:", error);
-			}
-			prefsStore.set({ revision: prefsStore.get().revision + 1 });
+			writeState({ prefs });
+			prefsStore.bump();
 			applyModelMenus();
 		}
 
@@ -1150,7 +1497,7 @@ function syncModelOptions(menu, firstGroup) {
 const DOCK_CSS = `
 /* ---- the session browser, docked to the conversation page ---- */
 .uidy-dock{position:fixed;left:0;top:var(--uidy-dock-top,44px);width:280px;max-height:calc(100vh - 172px);
-  z-index:900;display:flex;flex-direction:column;gap:6px;padding:8px 8px 10px;box-sizing:border-box;overflow:hidden;
+  z-index:var(--uidy-z-rail,900);display:flex;flex-direction:column;gap:6px;padding:8px 8px 10px;box-sizing:border-box;overflow:hidden;
   pointer-events:auto;
   border-right:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));border-bottom:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));
   border-bottom-right-radius:10px;background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-overlay,#14161c));
@@ -1300,7 +1647,7 @@ const RIGHTBAR_CSS = "";
   border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));
   background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-overlay,#ffffff));
   box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:13px}
-.uidy-menu-fixed{position:fixed;z-index:1200}
+.uidy-menu-fixed{position:fixed;z-index:var(--uidy-z-menu,1200)}
 /* the session browser needs room for the tree, not just for a command list */
 .uidy-menu-sessions{width:320px}
 .uidy-menu-sessions .uidy-sessions{max-height:min(46vh,380px)}
@@ -1347,7 +1694,7 @@ const RIGHTBAR_CSS = "";
  * for the shell menus underneath it.
  */
 .uidy-pages{position:fixed;top:0;left:var(--uidy-cluster-limit,158px);height:var(--dsh-windows-titlebar-height,40px);
-  display:flex;align-items:center;gap:2px;z-index:1100;pointer-events:none;-webkit-app-region:no-drag}
+  display:flex;align-items:center;gap:2px;z-index:var(--uidy-z-bar,1100);pointer-events:none;-webkit-app-region:no-drag}
 .uidy-page{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;height:28px;padding:0 10px;border:0;border-radius:6px;
   background:transparent;color:var(--dsw-alias-label-secondary,inherit);font:inherit;font-size:14px;line-height:1;
   white-space:nowrap;cursor:default;pointer-events:auto}
@@ -1374,7 +1721,7 @@ const RIGHTBAR_CSS = "";
 .uidy-pages-more{position:relative;flex:0 0 auto;pointer-events:auto}
 .uidy-pages-pop{position:absolute;top:32px;right:0;display:flex;flex-direction:column;gap:1px;min-width:180px;padding:4px;
   border-radius:10px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));
-  background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-overlay,#ffffff));box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:1200}
+  background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-overlay,#ffffff));box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:var(--uidy-z-menu,1200)}
 /*
  * Inside the popup a page is a row, so it takes the full column width and shares
  * the popup's edges instead of sizing to its own label.
@@ -1512,7 +1859,7 @@ const MODEL_CSS = `
 		 * @returns {void}
 		 */
 		function syncToolRows() {
-			const rows = [...document.querySelectorAll(TOOL_ROW_SELECTOR)].map((row) => {
+			const rows = queryAll("panelRows").map((row) => {
 				const svg = row.querySelector('svg');
 				return {
 					label: readRowLabel(row),
@@ -1578,7 +1925,7 @@ const MODEL_CSS = `
 			 * element and matched this very conversation, whose text mentions those
 			 * labels, and restyling that container is what tore the layout apart.
 			 */
-			const byClass = document.querySelector('[class*="viewOptions"]');
+			const byClass = queryOne("viewOptions");
 			if (labelled(byClass)) return byClass;
 			/*
 			 * Fallback for a renamed class: only real popovers, and the smallest one at
@@ -1683,7 +2030,7 @@ const MODEL_CSS = `
 				node.style.setProperty("position", "fixed", "important");
 				node.style.setProperty("left", Math.round(anchor.right + 8) + "px", "important");
 				node.style.setProperty("top", Math.round(Math.max(48, Math.min(anchor.top, window.innerHeight - box.height - 12))) + "px", "important");
-				node.style.setProperty("z-index", "1215", "important");
+				node.style.setProperty("z-index", "var(--uidy-z-flyout,1215)", "important");
 			}
 		}
 
@@ -1958,7 +2305,7 @@ const MODEL_CSS = `
 		function syncTaskChip() {
 			/* The settings page can switch the shortening off again. */
 			if (loadUi().taskChip === "full") return;
-			for (const count of document.querySelectorAll(".Ag-ohG_count")) {
+			for (const count of queryAll("taskChipCount")) {
 				const text = (count.textContent || "").trim();
 				const match = /(\d+)/.exec(text);
 				if (match === null) continue;
@@ -1991,7 +2338,7 @@ const MODEL_CSS = `
 		 */
 		function restoreTaskChip() {
 			if (loadUi().taskChip !== "full") return;
-			for (const count of document.querySelectorAll(".Ag-ohG_count")) {
+			for (const count of queryAll("taskChipCount")) {
 				const number = count.getAttribute("data-uidy-count");
 				if (number === null) continue;
 				const text = (count.textContent || "").trim();
@@ -2061,6 +2408,12 @@ const MENUS = [];
 		 * a reserve for the OS caption buttons. The reserve is measured at runtime
 		 * into this custom property; the fallback covers the first paint.
 		 */
+		/*
+		 * The stacking ladder, in one place. These used to be literals scattered over the
+		 * stylesheet and the lift code; the app menu incident (the cluster lifted to 1101
+		 * painted over the shell's own 1100 menu bar) is what happens when they drift.
+		 */
+		const Z_VARS = ":root{--uidy-z-rail:900;--uidy-z-bar:1100;--uidy-z-menu:1200;--uidy-z-flyout:1215;--uidy-z-tooltip:1300}";
 		const CAPTION_RESERVE_VAR = "--uidy-caption-reserve";
 		const CLUSTER_LIMIT_VAR = "--uidy-cluster-limit";
 
@@ -2799,9 +3152,7 @@ react.useEffect(() => {
 			 * hang off the screen, so it opens to the LEFT of that button: its own
 			 * right edge lines up with the button's right edge.
 			 */
-			const anchorRight = state.anchor.right === undefined ? null : state.anchor.right;
-			const wantedLeft =
-				anchorRight === null ? state.anchor.left : anchorRight - menuWidth;
+			const wantedLeft = popoverLeft(state.anchor, menuWidth);
 			return h(
 				"div",
 				{
@@ -2909,9 +3260,9 @@ react.useEffect(() => {
 const SAM_ICON_MARKUP = '<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="21" width="12" height="12" rx="2.6" fill="url(#dsh_sam_art_leafA)" fill-opacity="0.72"></rect><rect x="12" y="14" width="13" height="13" rx="2.8" fill="url(#dsh_sam_art_leafB)" fill-opacity="0.8"></rect><rect x="18" y="6" width="14" height="14" rx="3" fill="url(#dsh_sam_art_leafC)" fill-opacity="0.9"></rect><path d="M25 12.2h-2.6" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="1.7" stroke-linecap="round"></path><path d="M24.6 16.4h-3.4" stroke="#FFFFFF" stroke-opacity="0.72" stroke-width="1.7" stroke-linecap="round"></path><defs><linearGradient id="dsh_sam_art_leafA" x1="12" y1="21" x2="12" y2="33" gradientUnits="userSpaceOnUse"><stop stop-color="#45E7A4"></stop><stop offset="1" stop-color="#05909D"></stop></linearGradient><linearGradient id="dsh_sam_art_leafB" x1="18.5" y1="14" x2="18.5" y2="27" gradientUnits="userSpaceOnUse"><stop stop-color="#7FD1FF"></stop><stop offset="1" stop-color="#2BA6C9"></stop></linearGradient><linearGradient id="dsh_sam_art_leafC" x1="25" y1="6" x2="25" y2="20" gradientUnits="userSpaceOnUse"><stop stop-color="#69B9FF"></stop><stop offset="1" stop-color="#324DE2"></stop></linearGradient></defs></svg>';
 
 const CUSTOM_ACTIONS = [
-	{ key: "subagent", label: "子代理", icon: "agents", markup: SAM_ICON_MARKUP, selector: ".dsh-sam-trigger", run: () => runConversationAction(".dsh-sam-trigger") },
-	{ key: "workflow", label: "工作流", icon: "flow", selector: ".mneme-pipe-trigger", run: () => runConversationAction(".mneme-pipe-trigger") },
-	{ key: "tasks", label: "后台任务", icon: "clock", selector: ".Ag-ohG_trigger", run: () => runConversationAction(".Ag-ohG_trigger") }
+	{ key: "subagent", label: "子代理", icon: "agents", markup: SAM_ICON_MARKUP, selector: ".dsh-sam-trigger", run: () => runConversationAction(resolveSelector("subagentTrigger") ?? ".dsh-sam-trigger") },
+	{ key: "workflow", label: "工作流", icon: "flow", selector: ".mneme-pipe-trigger", run: () => runConversationAction(resolveSelector("workflowTrigger") ?? ".mneme-pipe-trigger") },
+	{ key: "tasks", label: "后台任务", icon: "clock", selector: ".Ag-ohG_trigger", run: () => runConversationAction(resolveSelector("taskChip") ?? ".Ag-ohG_trigger") }
 ];
 
 const CUSTOM_CSS = [
@@ -2938,6 +3289,9 @@ const CUSTOM_CSS = [
 	".uidy-set-row > select,.uidy-set-row > input[type=number]{height:26px;border-radius:6px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;font:inherit;font-size:13px;padding:0 6px;cursor:pointer}",
 	".uidy-set-row > input[type=number]{width:72px;cursor:text}",
 	".uidy-set-hint{opacity:.5;font-size:12px}",
+	".uidy-set-button{width:auto;align-self:flex-start;padding:0 10px;height:26px;border-radius:6px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}",
+	".uidy-set-button:hover{background:rgba(127,127,127,.16)}",
+	".uidy-set-diag{margin:6px 0 0;padding:8px 10px;max-height:220px;overflow:auto;border-radius:6px;background:rgba(127,127,127,.10);font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word}",
 	"/* hover name for every cluster button: a glyph alone leaves newcomers guessing */",
 	/* The bubble hangs below the bar, so nothing on the way may clip it. */
 	".uidy-pages,.uidy-pages > *{overflow:visible !important}",
@@ -2945,7 +3299,9 @@ const CUSTOM_CSS = [
 	"/* While the shell's settings sheet is being centred it stays invisible for a beat. */",
 	"html[data-uidy-account-pending] [role=\"dialog\"],html[data-uidy-account-pending] [class*=\"_sheet\"]{opacity:0 !important}",
 	"html[data-uidy-account-pending] [role=\"menu\"]:not(.uidy-menu){opacity:0 !important;pointer-events:none !important}",
-	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:1300}",
+	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:var(--uidy-z-tooltip,1300)}",
+	'.uidy-page[data-tip="left"]:hover::after{left:0;transform:none}',
+	'.uidy-page[data-tip="right"]:hover::after{left:auto;right:0;transform:none}',
 	"/* the subagent drawer opens below the title bar and the session row, so its own close button never lands on the window controls */",
 	".dsh-sam-backdrop{top:84px !important}",
 	".dsh-sam-panel{height:100% !important;border-top-left-radius:12px}",
@@ -2957,20 +3313,10 @@ const CUSTOM_CSS = [
 ].join("\n");
 
 function loadCustom() {
-	try {
-		const raw = localStorage.getItem(CUSTOM_KEY);
-		const parsed = raw === null ? null : JSON.parse(raw);
-		return Array.isArray(parsed) ? parsed.filter((key) => typeof key === "string") : [];
-	} catch {
-		return [];
-	}
+	return readField("custom", []);
 }
 function saveCustom(list) {
-	try {
-		localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
-	} catch {
-		/* storage unavailable */
-	}
+	writeState({ custom: Array.isArray(list) ? list : [] });
 }
 
 function clickSelector(selector) {
@@ -3037,23 +3383,11 @@ const PAGE_ORDER_KEY = "dsh-ui-tidy.pageOrder";
 		const PINNED_KEY = "dsh-ui-tidy.hidden";
 
 		function loadPinned() {
-			try {
-				const rawPinned = localStorage.getItem(PINNED_KEY);
-				if (rawPinned === null) return [];
-				const parsed = JSON.parse(rawPinned);
-				return Array.isArray(parsed) ? parsed.filter((key) => typeof key === "string") : [];
-			} catch {
-				return [];
-			}
+			return readField("hidden", []);
 		}
 
 		function savePinned(list) {
-			try {
-				if (list === null) localStorage.removeItem(PINNED_KEY);
-				else localStorage.setItem(PINNED_KEY, JSON.stringify(list));
-			} catch {
-				/* storage unavailable */
-			}
+			writeState({ hidden: Array.isArray(list) ? list : [] });
 		}
 
 		/**
@@ -3071,21 +3405,11 @@ const PAGE_ORDER_KEY = "dsh-ui-tidy.pageOrder";
 		}
 
 		function loadPageOrder() {
-			try {
-				const raw = localStorage.getItem(PAGE_ORDER_KEY);
-				const parsed = raw === null ? null : JSON.parse(raw);
-				return Array.isArray(parsed) ? parsed.filter((key) => typeof key === "string") : [];
-			} catch {
-				return [];
-			}
+			return readField("order", []);
 		}
 
-		function savePageOrder(order) {
-			try {
-				localStorage.setItem(PAGE_ORDER_KEY, JSON.stringify(order));
-			} catch {
-				/* storage unavailable */
-			}
+		function savePageOrder(list) {
+			writeState({ order: Array.isArray(list) ? list : [] });
 		}
 
 		/**
@@ -3162,8 +3486,12 @@ const rows = store.get().toolRows;
 			for (const panel of PANELS) {
 				if (panel.id === null) continue;
 				shipped.add(String(panel.id));
+				/* A page that stopped switching keeps its button only while its plugin is here. */
+				if (loadDeadPanels().includes(String(panel.id)) && !panelProviderLoaded(panel.id)) continue;
 				const row = discovered.get(panel.id);
 				if (row === undefined) {
+					/* No row and no plugin means the page is gone; do not invent a button for it. */
+					if (!panelProviderLoaded(panel.id)) continue;
 					add({ key: "p:" + String(panel.id), label: tt(panel.key), icon: PANEL_ICONS[panel.key] ?? "panel", iconMarkup: panelIcons.get(String(panel.id)) ?? null, panelId: panel.id, rowLabel: null });
 					continue;
 				}
@@ -3195,6 +3523,19 @@ const rows = store.get().toolRows;
 		 * @param width - the popup width.
 		 * @returns the left edge to use.
 		 */
+		/**
+		 * Where a popup starts so that it stays inside the window.
+		 * Right-aligned when the anchor reports a right edge, left-aligned otherwise.
+		 * @param anchor - the button rect recorded when the menu opened.
+		 * @param width - the popup width.
+		 * @returns the left edge to use.
+		 */
+		function popoverLeft(anchor, width) {
+			const right = anchor.right === undefined ? null : anchor.right;
+			const wanted = right === null ? anchor.left : right - width;
+			return Math.max(8, Math.min(wanted, window.innerWidth - width - 8));
+		}
+
 		function clampAnchorLeft(left, width) {
 			const limit = window.innerWidth - width - 8;
 			return Math.max(8, Math.min(left, limit));
@@ -3247,6 +3588,21 @@ const rows = store.get().toolRows;
 			return Math.max(8, Math.round(edge) + 8);
 		}
 
+		/**
+		 * The stacking level the shell's own title bar strip sits on.
+		 *
+		 * Measured, not assumed: the cluster is lifted to ten below this, so it clears every
+		 * foreign overlay while the app menu keeps painting above it. Hard-coding the number
+		 * is what hid 应用 / 编辑 behind the cluster once already.
+		 * @returns {number} a z-index, or 1090 when the strip is not there yet.
+		 */
+		function readHostMenuZ() {
+			const host = document.querySelector("[data-windows-menu]");
+			if (host === null) return 1100;
+			const value = Number.parseInt(getComputedStyle(host).zIndex, 10);
+			return Number.isFinite(value) ? value : 1100;
+		}
+
 		function readClusterLimit() {
 			const host = document.querySelector("[data-windows-menu]");
 			const rect = host === null ? null : host.getBoundingClientRect();
@@ -3271,7 +3627,6 @@ const rows = store.get().toolRows;
 			{
 				type: "button",
 				className: iconOnly ? "uidy-page uidy-page-icon" : "uidy-page",
-				title: page.label,
 				"data-name": page.label,
 				"aria-label": page.label,
 				"aria-current": props.active ? "page" : undefined,
@@ -3300,8 +3655,12 @@ const rows = store.get().toolRows;
 					/* Leaving the conversation closes the dock; it belongs to that page. */
 					store.set({ sessionsDock: false });
 					/* A null panelId is the conversation panel, so it must be selected too. */
-					if (page.rowLabel === null) selectPanel(page.panelId);
-					else clickToolRow(page.rowLabel);
+					if (page.rowLabel === null) {
+						selectPanel(page.panelId);
+						verifyPanel(page.panelId);
+					} else {
+						clickToolRow(page.rowLabel);
+					}
 				},
 			},
 			glyph,
@@ -3326,7 +3685,6 @@ const rows = store.get().toolRows;
 				{
 					type: "button",
 					className: "uidy-page uidy-page-icon",
-					title: tt("dock.toggle"),
 					"data-name": tt("dock.toggle"),
 					"aria-label": tt("dock.toggle"),
 					"aria-haspopup": "menu",
@@ -3391,7 +3749,6 @@ const rows = store.get().toolRows;
 							key: "custom:" + action.key,
 							type: "button",
 							className: "uidy-page uidy-page-icon",
-							title: action.label,
 							"data-name": action.label,
 							"aria-label": action.label,
 							"data-fixed": "",
@@ -3408,7 +3765,6 @@ customGlyph(action)
 						key: "custom-picker",
 						type: "button",
 						className: "uidy-page uidy-page-icon",
-						title: "自定义顶栏功能",
 						"data-name": "自定义顶栏功能",
 						"aria-label": "自定义顶栏功能",
 						"aria-haspopup": "menu",
@@ -3429,7 +3785,6 @@ customGlyph(action)
 						key: "account",
 						type: "button",
 						className: "uidy-page uidy-page-icon",
-						title: profile.name,
 						"data-name": profile.name || "账号",
 						"aria-label": profile.name,
 						"aria-haspopup": "menu",
@@ -3492,6 +3847,27 @@ customGlyph(action)
 			 * still below the app menu.
 			 */
 			const useLayout = react.useLayoutEffect ?? react.useEffect;
+			/*
+			 * The tooltip is centred by default; the first and last button would
+			 * push it outside the window, so each one is measured before it opens.
+			 */
+			useLayout(() => {
+				const bar = clusterRef.current;
+				if (bar === null) return undefined;
+				const lean = (event) => {
+					const from = event.target instanceof Element ? event.target : null;
+					const node = from === null ? null : from.closest("[data-name]");
+					if (node === null || bar.contains(node) === false) return;
+					const rect = node.getBoundingClientRect();
+					const label = node.getAttribute("data-name") || "";
+					const half = Math.min(130, label.length * 7) / 2;
+					const middle = rect.left + rect.width / 2;
+					const lean = middle - half < 8 ? "left" : middle + half > window.innerWidth - 8 ? "right" : "center";
+					if (node.getAttribute("data-tip") !== lean) node.setAttribute("data-tip", lean);
+				};
+				bar.addEventListener("pointerover", lean, true);
+				return () => bar.removeEventListener("pointerover", lean, true);
+			}, []);
 			useLayout(() => {
 				const node = clusterRef.current;
 				if (node === null) return undefined;
@@ -3501,7 +3877,7 @@ customGlyph(action)
 					const style = getComputedStyle(parent);
 					if (style.position !== "static" && style.zIndex !== "auto") {
 						lifted.push({ node: parent, zIndex: parent.style.zIndex });
-						parent.style.zIndex = "1090";
+						parent.style.zIndex = String(Math.max(1000, readHostMenuZ() - 10));
 					}
 					parent = parent.parentElement;
 				}
@@ -3684,7 +4060,7 @@ customGlyph(action)
 			return h(
 				react.Fragment,
 				null,
-				h("style", { key: "css" }, SIDEBAR_CSS + RIGHTBAR_CSS + HEADER_CSS + DOCK_CSS + POPUP_CSS + MODEL_CSS + CUSTOM_CSS),
+				h("style", { key: "css" }, Z_VARS + SIDEBAR_CSS + RIGHTBAR_CSS + HEADER_CSS + DOCK_CSS + POPUP_CSS + MODEL_CSS + CUSTOM_CSS),
 				h(ActionMenu, { key: "menu" }),
 				h(SessionsDock, { key: "dock" }),
 				h(PageCluster, { key: "pages" })
@@ -3803,21 +4179,8 @@ customGlyph(action)
 		 * @returns the stored values merged over the defaults.
 		 */
 		function loadUi() {
-			try {
-				const raw = window.localStorage.getItem(UI_KEY);
-				const parsed = raw === null ? null : JSON.parse(raw);
-				if (parsed === null || typeof parsed !== "object") return { ...UI_DEFAULTS };
-				if (parsed.v !== UI_VERSION) {
-					/* A layout stored by an older build is not a user decision: drop it. */
-					try {
-						window.localStorage.setItem(UI_KEY, JSON.stringify({ ...UI_DEFAULTS }));
-					} catch { /* storage may be unavailable */ }
-					return { ...UI_DEFAULTS };
-				}
-				return { ...UI_DEFAULTS, ...parsed };
-			} catch {
-				return { ...UI_DEFAULTS };
-			}
+			const stored = readField("ui", {});
+			return { ...UI_DEFAULTS, ...stored };
 		}
 
 		/**
@@ -3827,20 +4190,17 @@ customGlyph(action)
 		 */
 		function saveUi(patch) {
 			const next = { ...loadUi(), ...patch };
-			try {
-				window.localStorage.setItem(UI_KEY, JSON.stringify(next));
-			} catch (error) {
-				console.warn("[ui-tidy] title bar preferences not persisted:", error);
-			}
+		
+	writeState({ ui: next });
 			store.set({ ui: next });
 			/*
-			 * The caption effect only re-runs on mount and resize, so push the
-			 * two layout values it derives here as well: that way flipping the
-			 * number in the settings page moves the menu bar immediately.
+			 * The caption effect only re-runs on mount and resize, so push the two
+			 * layout values it derives here as well: that way flipping the number in
+			 * the settings page moves the menu bar immediately.
 			 */
 			try {
-				document.documentElement.style.setProperty("--dsh-windows-menu-start", `${next.menuStart}px`);
-				document.documentElement.style.setProperty(CLUSTER_LIMIT_VAR, `${readClusterLimit()}px`);
+				document.documentElement.style.setProperty("--dsh-windows-menu-start", next.menuStart + "px");
+				document.documentElement.style.setProperty(CLUSTER_LIMIT_VAR, readClusterLimit() + "px");
 			} catch (error) {
 				console.warn("[ui-tidy] title bar layout not applied:", error);
 			}
@@ -3876,6 +4236,7 @@ customGlyph(action)
 			const hidden = loadPinned();
 			const pages = readPages();
 			const rows = [];
+			const [note, setNote] = react.useState("");
 			rows.push(h("div", { key: "title", className: "uidy-set-title" }, "顶栏界面"));
 			rows.push(
 				h("div", { key: "desc", className: "uidy-set-desc" }, "调整窗口标题栏上的那一排按钮与会话页头部的显示方式。改动即时生效，设置保存在本机。")
@@ -3960,6 +4321,89 @@ customGlyph(action)
 					})
 				);
 			}
+			rows.push(h("div", { key: "h4", className: "uidy-set-head" }, "诊断"));
+			const health = readPluginHealth();
+			rows.push(
+				h(
+					"div",
+					{ key: "diag-summary", className: "uidy-set-row" },
+					h(
+						"span",
+						{ className: "uidy-set-hint" },
+						"宿主钩子 " + health.hooksOk + "/" + health.hooksTotal + " 可用 · 发现页面 " + health.pages + " 个 · 顺序 " + (health.order.length === 0 ? "默认" : health.order.join(" → "))
+					)
+				)
+			);
+			rows.push(
+				h(
+					"button",
+					{ key: "diag-copy", type: "button", className: "uidy-set-row uidy-set-button", onClick: () => copyDiagnostics() },
+					"复制诊断信息"
+				)
+			);
+			rows.push(h("pre", { key: "diag-pre", className: "uidy-set-diag" }, JSON.stringify(health, null, 1)));
+			rows.push(h("div", { key: "h5", className: "uidy-set-head" }, "备份与恢复"));
+			rows.push(
+				h(
+					"div",
+					{ key: "backup", className: "uidy-set-row" },
+					h(
+						"button",
+						{
+							type: "button",
+							className: "uidy-set-button",
+							onClick: () => {
+								const text = JSON.stringify(readState(), null, 2);
+								try {
+									navigator.clipboard.writeText(text);
+									setNote("已复制到剪贴板，粘贴到文件里即可留底");
+								} catch {
+									setNote("剪贴板不可用，已打印到控制台");
+									console.log(text);
+								}
+							}
+						},
+						"导出设置"
+					),
+					h(
+						"button",
+						{
+							type: "button",
+							className: "uidy-set-button",
+							onClick: () => {
+								const text = window.prompt("粘贴之前导出的设置 JSON");
+								if (text === null || text.trim() === "") return;
+								try {
+									const parsed = JSON.parse(text);
+									persistState({ ...emptyState(), ...parsed, version: STATE_VERSION });
+									store.set({});
+									setNote("已导入设置");
+								} catch (error) {
+									setNote("导入失败：不是有效的设置 JSON");
+									console.warn("[ui-tidy] import failed:", error);
+								}
+							}
+						},
+						"导入设置"
+					),
+					h(
+						"button",
+						{
+							type: "button",
+							className: "uidy-set-button",
+							onClick: () => {
+								if (window.confirm("恢复默认设置？当前的顶栏顺序与开关会被清空。") === false) return;
+								persistState(emptyState());
+								store.set({});
+								setNote("已恢复默认设置");
+							}
+						},
+						"恢复默认"
+					)
+				)
+			);
+			rows.push(h("div", { key: "backup-note", className: "uidy-set-hint" }, note));
+
 			return h("div", { className: "uidy-set" }, rows);
 		}
 
