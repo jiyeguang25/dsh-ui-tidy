@@ -4236,6 +4236,7 @@ customGlyph(action)
 			const hidden = loadPinned();
 			const pages = readPages();
 			const rows = [];
+			const [note, setNote] = react.useState("");
 			rows.push(h("div", { key: "title", className: "uidy-set-title" }, "顶栏界面"));
 			rows.push(
 				h("div", { key: "desc", className: "uidy-set-desc" }, "调整窗口标题栏上的那一排按钮与会话页头部的显示方式。改动即时生效，设置保存在本机。")
@@ -4341,6 +4342,68 @@ customGlyph(action)
 				)
 			);
 			rows.push(h("pre", { key: "diag-pre", className: "uidy-set-diag" }, JSON.stringify(health, null, 1)));
+			rows.push(h("div", { key: "h5", className: "uidy-set-head" }, "备份与恢复"));
+			rows.push(
+				h(
+					"div",
+					{ key: "backup", className: "uidy-set-row" },
+					h(
+						"button",
+						{
+							type: "button",
+							className: "uidy-set-button",
+							onClick: () => {
+								const text = JSON.stringify(readState(), null, 2);
+								try {
+									navigator.clipboard.writeText(text);
+									setNote("已复制到剪贴板，粘贴到文件里即可留底");
+								} catch {
+									setNote("剪贴板不可用，已打印到控制台");
+									console.log(text);
+								}
+							}
+						},
+						"导出设置"
+					),
+					h(
+						"button",
+						{
+							type: "button",
+							className: "uidy-set-button",
+							onClick: () => {
+								const text = window.prompt("粘贴之前导出的设置 JSON");
+								if (text === null || text.trim() === "") return;
+								try {
+									const parsed = JSON.parse(text);
+									persistState({ ...emptyState(), ...parsed, version: STATE_VERSION });
+									store.set({});
+									setNote("已导入设置");
+								} catch (error) {
+									setNote("导入失败：不是有效的设置 JSON");
+									console.warn("[ui-tidy] import failed:", error);
+								}
+							}
+						},
+						"导入设置"
+					),
+					h(
+						"button",
+						{
+							type: "button",
+							className: "uidy-set-button",
+							onClick: () => {
+								if (window.confirm("恢复默认设置？当前的顶栏顺序与开关会被清空。") === false) return;
+								persistState(emptyState());
+								store.set({});
+								setNote("已恢复默认设置");
+							}
+						},
+						"恢复默认"
+					)
+				)
+			);
+			rows.push(h("div", { key: "backup-note", className: "uidy-set-hint" }, note));
+
 			return h("div", { className: "uidy-set" }, rows);
 		}
 
