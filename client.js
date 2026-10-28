@@ -4576,7 +4576,16 @@ function dressEarly() {
 
 dressEarly();
 
-		exports.apply = apply;
+		// A guard rail, not a feature: one throwing seat must never take the whole
+		// entry down and leave the shell without a top bar, which is a state the
+		// user cannot diagnose and can only escape by resetting the profile.
+		exports.apply = function guardedApply(ctx) {
+			try {
+				apply(ctx);
+			} catch (error) {
+				console.error("[ui-tidy] activation failed; the shell keeps running:", error);
+			}
+		};
 		exports.inject = ["slots", "locale"];
 		return module.exports;
 	}
