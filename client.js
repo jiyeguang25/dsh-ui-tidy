@@ -3152,9 +3152,7 @@ react.useEffect(() => {
 			 * hang off the screen, so it opens to the LEFT of that button: its own
 			 * right edge lines up with the button's right edge.
 			 */
-			const anchorRight = state.anchor.right === undefined ? null : state.anchor.right;
-			const wantedLeft =
-				anchorRight === null ? state.anchor.left : anchorRight - menuWidth;
+			const wantedLeft = popoverLeft(state.anchor, menuWidth);
 			return h(
 				"div",
 				{
@@ -3301,7 +3299,9 @@ const CUSTOM_CSS = [
 	"/* While the shell's settings sheet is being centred it stays invisible for a beat. */",
 	"html[data-uidy-account-pending] [role=\"dialog\"],html[data-uidy-account-pending] [class*=\"_sheet\"]{opacity:0 !important}",
 	"html[data-uidy-account-pending] [role=\"menu\"]:not(.uidy-menu){opacity:0 !important;pointer-events:none !important}",
-	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:var(--uidy-z-tooltip,1300)}",
+	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:var(--uidy-z-tooltip,1300)}",
+	'.uidy-page[data-tip="left"]:hover::after{left:0;transform:none}',
+	'.uidy-page[data-tip="right"]:hover::after{left:auto;right:0;transform:none}',
 	"/* the subagent drawer opens below the title bar and the session row, so its own close button never lands on the window controls */",
 	".dsh-sam-backdrop{top:84px !important}",
 	".dsh-sam-panel{height:100% !important;border-top-left-radius:12px}",
@@ -3523,6 +3523,19 @@ const rows = store.get().toolRows;
 		 * @param width - the popup width.
 		 * @returns the left edge to use.
 		 */
+		/**
+		 * Where a popup starts so that it stays inside the window.
+		 * Right-aligned when the anchor reports a right edge, left-aligned otherwise.
+		 * @param anchor - the button rect recorded when the menu opened.
+		 * @param width - the popup width.
+		 * @returns the left edge to use.
+		 */
+		function popoverLeft(anchor, width) {
+			const right = anchor.right === undefined ? null : anchor.right;
+			const wanted = right === null ? anchor.left : right - width;
+			return Math.max(8, Math.min(wanted, window.innerWidth - width - 8));
+		}
+
 		function clampAnchorLeft(left, width) {
 			const limit = window.innerWidth - width - 8;
 			return Math.max(8, Math.min(left, limit));
@@ -3614,7 +3627,6 @@ const rows = store.get().toolRows;
 			{
 				type: "button",
 				className: iconOnly ? "uidy-page uidy-page-icon" : "uidy-page",
-				title: page.label,
 				"data-name": page.label,
 				"aria-label": page.label,
 				"aria-current": props.active ? "page" : undefined,
@@ -3673,7 +3685,6 @@ const rows = store.get().toolRows;
 				{
 					type: "button",
 					className: "uidy-page uidy-page-icon",
-					title: tt("dock.toggle"),
 					"data-name": tt("dock.toggle"),
 					"aria-label": tt("dock.toggle"),
 					"aria-haspopup": "menu",
@@ -3738,7 +3749,6 @@ const rows = store.get().toolRows;
 							key: "custom:" + action.key,
 							type: "button",
 							className: "uidy-page uidy-page-icon",
-							title: action.label,
 							"data-name": action.label,
 							"aria-label": action.label,
 							"data-fixed": "",
@@ -3755,7 +3765,6 @@ customGlyph(action)
 						key: "custom-picker",
 						type: "button",
 						className: "uidy-page uidy-page-icon",
-						title: "自定义顶栏功能",
 						"data-name": "自定义顶栏功能",
 						"aria-label": "自定义顶栏功能",
 						"aria-haspopup": "menu",
@@ -3776,7 +3785,6 @@ customGlyph(action)
 						key: "account",
 						type: "button",
 						className: "uidy-page uidy-page-icon",
-						title: profile.name,
 						"data-name": profile.name || "账号",
 						"aria-label": profile.name,
 						"aria-haspopup": "menu",
@@ -3839,6 +3847,27 @@ customGlyph(action)
 			 * still below the app menu.
 			 */
 			const useLayout = react.useLayoutEffect ?? react.useEffect;
+			/*
+			 * The tooltip is centred by default; the first and last button would
+			 * push it outside the window, so each one is measured before it opens.
+			 */
+			useLayout(() => {
+				const bar = clusterRef.current;
+				if (bar === null) return undefined;
+				const lean = (event) => {
+					const from = event.target instanceof Element ? event.target : null;
+					const node = from === null ? null : from.closest("[data-name]");
+					if (node === null || bar.contains(node) === false) return;
+					const rect = node.getBoundingClientRect();
+					const label = node.getAttribute("data-name") || "";
+					const half = Math.min(130, label.length * 7) / 2;
+					const middle = rect.left + rect.width / 2;
+					const lean = middle - half < 8 ? "left" : middle + half > window.innerWidth - 8 ? "right" : "center";
+					if (node.getAttribute("data-tip") !== lean) node.setAttribute("data-tip", lean);
+				};
+				bar.addEventListener("pointerover", lean, true);
+				return () => bar.removeEventListener("pointerover", lean, true);
+			}, []);
 			useLayout(() => {
 				const node = clusterRef.current;
 				if (node === null) return undefined;
