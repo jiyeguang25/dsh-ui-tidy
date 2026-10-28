@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: node --check client.js
+      - name: Boot smoke (does the plugin entry activate?)
+        run: node smoke/smoke-boot.mjs
+      - name: Manifest sanity
+        run: node -e "const p=require('./package.json'); if(!p.name||!p.version) throw new Error('manifest'); console.log(p.name, p.version)"

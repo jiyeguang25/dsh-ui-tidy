@@ -89,6 +89,15 @@ dsh plugin --profile desktop remove dsh-ui-tidy
 - 面板发现依赖侧栏行的 React fiber 结构：宿主若重写侧栏组件需要更新 `readRowPanelId()`。届时顶栏仍能工作，只是新面板要等一版适配（硬编码回退仍在）。
 - 只对 Web GUI 有效（`platform: web`），ACL / CLI 界面不受影响。
 
+## 持续集成
+
+仓库里的 CI 配方放在 `ci/github-actions.yml`，而不是 `.github/workflows/ci.yml`：写这个仓库的访问码没有 `workflow` 权限，一旦提交到 `.github/workflows/` 就会被 GitHub 拒收（`refusing to allow a Personal Access Token to create or update workflow ... without workflow scope`）。
+
+想启用 CI，两条路任选：
+
+1. 把 `ci/github-actions.yml` 复制到 `.github/workflows/ci.yml`，用带 `workflow` 权限的访问码提交；
+2. 在网页端新建 `.github/workflows/ci.yml`，把同一份内容粘进去。
+
 ## 自检
 
 ```bash
