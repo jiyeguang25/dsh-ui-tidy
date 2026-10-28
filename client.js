@@ -1497,7 +1497,7 @@ function syncModelOptions(menu, firstGroup) {
 const DOCK_CSS = `
 /* ---- the session browser, docked to the conversation page ---- */
 .uidy-dock{position:fixed;left:0;top:var(--uidy-dock-top,44px);width:280px;max-height:calc(100vh - 172px);
-  z-index:900;display:flex;flex-direction:column;gap:6px;padding:8px 8px 10px;box-sizing:border-box;overflow:hidden;
+  z-index:var(--uidy-z-rail,900);display:flex;flex-direction:column;gap:6px;padding:8px 8px 10px;box-sizing:border-box;overflow:hidden;
   pointer-events:auto;
   border-right:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));border-bottom:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));
   border-bottom-right-radius:10px;background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-overlay,#14161c));
@@ -1647,7 +1647,7 @@ const RIGHTBAR_CSS = "";
   border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));
   background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-overlay,#ffffff));
   box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:13px}
-.uidy-menu-fixed{position:fixed;z-index:1200}
+.uidy-menu-fixed{position:fixed;z-index:var(--uidy-z-menu,1200)}
 /* the session browser needs room for the tree, not just for a command list */
 .uidy-menu-sessions{width:320px}
 .uidy-menu-sessions .uidy-sessions{max-height:min(46vh,380px)}
@@ -1694,7 +1694,7 @@ const RIGHTBAR_CSS = "";
  * for the shell menus underneath it.
  */
 .uidy-pages{position:fixed;top:0;left:var(--uidy-cluster-limit,158px);height:var(--dsh-windows-titlebar-height,40px);
-  display:flex;align-items:center;gap:2px;z-index:1100;pointer-events:none;-webkit-app-region:no-drag}
+  display:flex;align-items:center;gap:2px;z-index:var(--uidy-z-bar,1100);pointer-events:none;-webkit-app-region:no-drag}
 .uidy-page{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;height:28px;padding:0 10px;border:0;border-radius:6px;
   background:transparent;color:var(--dsw-alias-label-secondary,inherit);font:inherit;font-size:14px;line-height:1;
   white-space:nowrap;cursor:default;pointer-events:auto}
@@ -1721,7 +1721,7 @@ const RIGHTBAR_CSS = "";
 .uidy-pages-more{position:relative;flex:0 0 auto;pointer-events:auto}
 .uidy-pages-pop{position:absolute;top:32px;right:0;display:flex;flex-direction:column;gap:1px;min-width:180px;padding:4px;
   border-radius:10px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));
-  background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-overlay,#ffffff));box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:1200}
+  background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-overlay,#ffffff));box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:var(--uidy-z-menu,1200)}
 /*
  * Inside the popup a page is a row, so it takes the full column width and shares
  * the popup's edges instead of sizing to its own label.
@@ -2030,7 +2030,7 @@ const MODEL_CSS = `
 				node.style.setProperty("position", "fixed", "important");
 				node.style.setProperty("left", Math.round(anchor.right + 8) + "px", "important");
 				node.style.setProperty("top", Math.round(Math.max(48, Math.min(anchor.top, window.innerHeight - box.height - 12))) + "px", "important");
-				node.style.setProperty("z-index", "1215", "important");
+				node.style.setProperty("z-index", "var(--uidy-z-flyout,1215)", "important");
 			}
 		}
 
@@ -2408,6 +2408,12 @@ const MENUS = [];
 		 * a reserve for the OS caption buttons. The reserve is measured at runtime
 		 * into this custom property; the fallback covers the first paint.
 		 */
+		/*
+		 * The stacking ladder, in one place. These used to be literals scattered over the
+		 * stylesheet and the lift code; the app menu incident (the cluster lifted to 1101
+		 * painted over the shell's own 1100 menu bar) is what happens when they drift.
+		 */
+		const Z_VARS = ":root{--uidy-z-rail:900;--uidy-z-bar:1100;--uidy-z-menu:1200;--uidy-z-flyout:1215;--uidy-z-tooltip:1300}";
 		const CAPTION_RESERVE_VAR = "--uidy-caption-reserve";
 		const CLUSTER_LIMIT_VAR = "--uidy-cluster-limit";
 
@@ -3295,7 +3301,7 @@ const CUSTOM_CSS = [
 	"/* While the shell's settings sheet is being centred it stays invisible for a beat. */",
 	"html[data-uidy-account-pending] [role=\"dialog\"],html[data-uidy-account-pending] [class*=\"_sheet\"]{opacity:0 !important}",
 	"html[data-uidy-account-pending] [role=\"menu\"]:not(.uidy-menu){opacity:0 !important;pointer-events:none !important}",
-	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:1300}",
+	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:var(--uidy-z-tooltip,1300)}",
 	"/* the subagent drawer opens below the title bar and the session row, so its own close button never lands on the window controls */",
 	".dsh-sam-backdrop{top:84px !important}",
 	".dsh-sam-panel{height:100% !important;border-top-left-radius:12px}",
@@ -3569,6 +3575,21 @@ const rows = store.get().toolRows;
 			return Math.max(8, Math.round(edge) + 8);
 		}
 
+		/**
+		 * The stacking level the shell's own title bar strip sits on.
+		 *
+		 * Measured, not assumed: the cluster is lifted to ten below this, so it clears every
+		 * foreign overlay while the app menu keeps painting above it. Hard-coding the number
+		 * is what hid 应用 / 编辑 behind the cluster once already.
+		 * @returns {number} a z-index, or 1090 when the strip is not there yet.
+		 */
+		function readHostMenuZ() {
+			const host = document.querySelector("[data-windows-menu]");
+			if (host === null) return 1100;
+			const value = Number.parseInt(getComputedStyle(host).zIndex, 10);
+			return Number.isFinite(value) ? value : 1100;
+		}
+
 		function readClusterLimit() {
 			const host = document.querySelector("[data-windows-menu]");
 			const rect = host === null ? null : host.getBoundingClientRect();
@@ -3827,7 +3848,7 @@ customGlyph(action)
 					const style = getComputedStyle(parent);
 					if (style.position !== "static" && style.zIndex !== "auto") {
 						lifted.push({ node: parent, zIndex: parent.style.zIndex });
-						parent.style.zIndex = "1090";
+						parent.style.zIndex = String(Math.max(1000, readHostMenuZ() - 10));
 					}
 					parent = parent.parentElement;
 				}
@@ -4010,7 +4031,7 @@ customGlyph(action)
 			return h(
 				react.Fragment,
 				null,
-				h("style", { key: "css" }, SIDEBAR_CSS + RIGHTBAR_CSS + HEADER_CSS + DOCK_CSS + POPUP_CSS + MODEL_CSS + CUSTOM_CSS),
+				h("style", { key: "css" }, Z_VARS + SIDEBAR_CSS + RIGHTBAR_CSS + HEADER_CSS + DOCK_CSS + POPUP_CSS + MODEL_CSS + CUSTOM_CSS),
 				h(ActionMenu, { key: "menu" }),
 				h(SessionsDock, { key: "dock" }),
 				h(PageCluster, { key: "pages" })
