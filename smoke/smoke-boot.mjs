@@ -265,6 +265,20 @@ unmute();
 		src.includes('segment.endsWith("-" + id)') && !src.includes("entry === id || entry.includes(id)"),
 		"whole-segment match against the boot manifest",
 	);
+
+	check(
+		"selection is a row highlight, not a tick",
+		src.includes(".uidy-item-on{background:") &&
+			src.includes(".uidy-set-check-on{background:") &&
+			!src.includes('on ? h(Icon, { name: "check" }) : null'),
+		"checked rows use uidy-item-on / uidy-set-check-on and no check glyph",
+	);
+
+	check(
+		"per-row 打开 button sits at the right edge",
+		src.includes(".uidy-custom-run{margin-left:auto") && src.includes("uidy-menu-custom{width:"),
+		"custom list is 348px and the run button is pushed right",
+	);
 }
 
 /* ---------------- report ---------------- */
