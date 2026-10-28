@@ -182,6 +182,72 @@ if (entry) {
 	}
 }
 
+/* ---------------- safe mode ---------------- */
+function loadFresh() {
+	globalThis.__entry = null;
+	new Function("window", "document", "require", "MutationObserver", "ResizeObserver", srcSrc)(window, document, (id) => {
+		if (id === "react") return react;
+		throw new Error("unexpected require: " + id);
+	}, Observer, Observer);
+	const fresh = globalThis.__entry;
+	return fresh.factory((id) => {
+		if (id === "react") return react;
+		throw new Error("unexpected require: " + id);
+	});
+}
+
+function runApply(mod, override) {
+	const registered = [];
+	const opts = override || {};
+	const ctx = {
+		get: () => null,
+		effect: opts.effect || ((fn) => { const d = fn(); return typeof d === "function" ? d : () => {}; }),
+		locale: { register: () => () => {}, bind: () => (k) => k, getLocale: () => "zh-CN" },
+		slots: opts.slots || {
+			inject: (seat, cb) => { cb && cb(); return () => {}; },
+			register: (opts_) => { registered.push(opts_.name); return () => {}; },
+		},
+	};
+	let threw = null;
+	try { mod.apply(ctx); } catch (error) { threw = error; }
+	return { registered, threw };
+}
+
+// The negative cases below log on purpose. Silence them so a passing run reads
+// as a passing run; the assertions, not the log text, are the evidence.
+const quiet = () => { const e = console.error, w = console.warn; console.error = () => {}; console.warn = () => {}; return () => { console.error = e; console.warn = w; }; };
+const unmute = quiet();
+
+const srcSrc = src;
+storage.set("dsh-ui-tidy.safeMode", "off");
+{
+	const mod = loadFresh();
+	const { registered, threw } = runApply(mod);
+	check("safe mode off: apply does not throw", threw === null, threw ? String(threw && threw.message) : "");
+	check("safe mode off: registers nothing", registered.length === 0, registered.join(","));
+}
+storage.delete("dsh-ui-tidy.safeMode");
+storage.set("dsh-ui-tidy.safeMode", "off");
+{
+	const mod = loadFresh();
+	const { registered } = runApply(mod);
+	check("safe mode is read from storage", registered.length === 0, "seats=" + registered.length);
+}
+storage.delete("dsh-ui-tidy.safeMode");
+{
+	// Per-seat registration failures are swallowed on purpose inside apply(), so
+	// the fallback has to be driven by a throw that escapes apply() itself.
+	const explodingEffect = { effect: () => { throw new Error("effect exploded"); } };
+	const mod = loadFresh();
+	runApply(mod, explodingEffect);
+	check("failure counter increments", storage.get("dsh-ui-tidy.activationFailures") === "1", String(storage.get("dsh-ui-tidy.activationFailures")));
+	const mod2 = loadFresh();
+	runApply(mod2, explodingEffect);
+	check("second failure switches to minimal", storage.get("dsh-ui-tidy.safeMode") === "minimal", String(storage.get("dsh-ui-tidy.safeMode")));
+}
+
+unmute();
+
 /* ---------------- report ---------------- */
 const failed = results.filter((r) => !r.ok);
 for (const r of results) console.log((r.ok ? "PASS  " : "FAIL  ") + r.name + (r.ok || !r.detail ? "" : "  -> " + r.detail));
