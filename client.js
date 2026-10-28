@@ -235,6 +235,110 @@ window.__ModuleLoader__.load({
 			{ id: "bill", key: "panel.bill" }
 		];
 
+		const DEAD_PANELS_KEY = "dsh-ui-tidy.deadPanels";
+
+		/**
+		 * The client plugins the host has actually loaded.
+		 *
+		 * A panel that registers into the main slot without drawing a sidebar row
+		 * (the usage panel does) leaves no DOM mark, so the module manifest is the
+		 * only live proof that the page still exists. Uninstalling that plugin drops
+		 * its entry, and the button goes with it.
+		 * @returns the loaded entry ids, lower-cased.
+		 */
+		function readBootEntryIds() {
+			try {
+				const boot = window.__DSH_BOOT__;
+				if (boot === null || boot === undefined) return [];
+				const ids = [];
+				const list = Array.isArray(boot.entries) ? boot.entries : [];
+				for (const entry of list) {
+					const id = typeof entry === "string" ? entry : entry !== null && typeof entry === "object" ? entry.id : null;
+					if (typeof id === "string" && id !== "") ids.push(id.toLowerCase());
+				}
+				const batches = Array.isArray(boot.batches) ? boot.batches : [];
+				for (const batch of batches) {
+					const name = typeof batch === "string" ? batch : batch !== null && typeof batch === "object" ? batch.id ?? batch.name : null;
+					if (typeof name === "string" && name !== "") ids.push(name.toLowerCase());
+				}
+				return ids;
+			} catch (error) {
+				console.warn("[ui-tidy] boot entries unreadable:", error);
+				return [];
+			}
+		}
+
+		/**
+		 * Whether a shipped-but-rowless panel still has its plugin loaded.
+		 * Without the manifest the answer is yes: a missing manifest must never
+		 * empty the bar.
+		 * @param panelId - the main panel id.
+		 * @returns true when a loaded entry name mentions the id.
+		 */
+		function panelProviderLoaded(panelId) {
+			const id = String(panelId).toLowerCase();
+			if (id === "") return true;
+			const entries = readBootEntryIds();
+			if (entries.length === 0) return true;
+			return entries.some((entry) => entry === id || entry.includes(id));
+		}
+
+		/**
+		 * Pages that answered a click with nothing at all.
+		 * @returns the panel ids.
+		 */
+		function loadDeadPanels() {
+			try {
+				const stored = window.localStorage.getItem(DEAD_PANELS_KEY);
+				if (stored === null) return [];
+				const parsed = JSON.parse(stored);
+				return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+			} catch (error) {
+				return [];
+			}
+		}
+
+		/**
+		 * Remember that a page no longer switches, so its button can be dropped.
+		 * @param panelId - the main panel id.
+		 * @returns void.
+		 */
+		function markPanelDead(panelId) {
+			const id = String(panelId);
+			const dead = loadDeadPanels();
+			if (dead.includes(id)) return;
+			dead.push(id);
+			try {
+				window.localStorage.setItem(DEAD_PANELS_KEY, JSON.stringify(dead));
+			} catch (error) {
+				console.warn("[ui-tidy] dead panel list not saved:", error);
+				return;
+			}
+			/* Bumping the store makes the cluster re-read the page list. */
+			store.set({});
+		}
+
+		/**
+		 * Watch the panel the host reports after a page button was pressed and
+		 * mark the page dead when the switch did not happen.
+		 * @param panelId - the panel the button asked for.
+		 * @returns void.
+		 */
+		function verifyPanel(panelId) {
+			if (panelId === null || panelId === undefined) return;
+			const wanted = String(panelId);
+			window.setTimeout(() => {
+				let active = null;
+				try {
+					active = readActivePanelId();
+				} catch (error) {
+					return;
+				}
+				if (active === null || String(active) === wanted) return;
+				markPanelDead(wanted);
+			}, 500);
+		}
+
 		/**
 		 * Start a new session.
 		 * @returns {void}
@@ -3162,8 +3266,12 @@ const rows = store.get().toolRows;
 			for (const panel of PANELS) {
 				if (panel.id === null) continue;
 				shipped.add(String(panel.id));
+				/* A page that stopped switching keeps its button only while its plugin is here. */
+				if (loadDeadPanels().includes(String(panel.id)) && !panelProviderLoaded(panel.id)) continue;
 				const row = discovered.get(panel.id);
 				if (row === undefined) {
+					/* No row and no plugin means the page is gone; do not invent a button for it. */
+					if (!panelProviderLoaded(panel.id)) continue;
 					add({ key: "p:" + String(panel.id), label: tt(panel.key), icon: PANEL_ICONS[panel.key] ?? "panel", iconMarkup: panelIcons.get(String(panel.id)) ?? null, panelId: panel.id, rowLabel: null });
 					continue;
 				}
@@ -3300,8 +3408,12 @@ const rows = store.get().toolRows;
 					/* Leaving the conversation closes the dock; it belongs to that page. */
 					store.set({ sessionsDock: false });
 					/* A null panelId is the conversation panel, so it must be selected too. */
-					if (page.rowLabel === null) selectPanel(page.panelId);
-					else clickToolRow(page.rowLabel);
+					if (page.rowLabel === null) {
+						selectPanel(page.panelId);
+						verifyPanel(page.panelId);
+					} else {
+						clickToolRow(page.rowLabel);
+					}
 				},
 			},
 			glyph,
