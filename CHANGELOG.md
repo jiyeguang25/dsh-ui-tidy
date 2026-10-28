@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.11
+- Reverting my own overreach: the 对话 tab is back. The strip switches the VIEW inside the conversation panel, while the title bar 对话 button switches the PANEL - two different controls. Hiding the tab meant anyone who opened 轨迹 had no way back to the chat view.
+- No view tab is pruned or hidden any more; the strip is plain visible and scrollable. The smoke contract now fails if any rule targets a view tab again.
+
 ## 0.4.10
 - The bar no longer keeps buttons for plugins you removed. Panel liveness compared package names by substring, so "billion-context" counted as proof that the removed usage panel (`bill`) was still installed. It now compares whole name segments (`dsh-bill` ends with `-bill`), so an uninstalled plugin takes its button with it.
 - The conversation view strip is back: 轨迹 / 上下文 / 画廊 / 账本 were unreachable because the strip was hidden as a whole to remove the duplicate 对话 tab. Only that one tab is tagged and hidden now; the rest stays clickable.
