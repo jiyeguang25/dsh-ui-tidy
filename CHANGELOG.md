@@ -40,3 +40,12 @@
 
 ## 0.2.0
 - First packaged release: icon title bar discovered from the live UI, settings page, folded model picker.
+
+## 0.4.4
+
+- One tooltip per button: the cluster dropped its native `title`, keeping the
+  styled bubble on `data-name` (no more OS tooltip after the CSS one).
+- The bubble now leans left or right on the outermost buttons so it cannot run
+  off the window edge.
+- Popup placement moved into `popoverLeft(anchor, width)`, one function that
+  both right-aligns under its button and clamps to the window.
