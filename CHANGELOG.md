@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.10
+- The bar no longer keeps buttons for plugins you removed. Panel liveness compared package names by substring, so "billion-context" counted as proof that the removed usage panel (`bill`) was still installed. It now compares whole name segments (`dsh-bill` ends with `-bill`), so an uninstalled plugin takes its button with it.
+- The conversation view strip is back: 轨迹 / 上下文 / 画廊 / 账本 were unreachable because the strip was hidden as a whole to remove the duplicate 对话 tab. Only that one tab is tagged and hidden now; the rest stays clickable.
+- Two regression checks in the boot smoke guard both: the strip must never be hidden wholesale again, and liveness must not fall back to substring matching. 18 checks total.
+
 ## 0.4.9
 - Hot reload, for real this time. `@deepseek-ai/dsh-hmr` is installed in the desktop profile and the `hmr` entry supplied by the base bundle is overridden by id in `cordis.patch.yml` (`disabled: false`, `root: [".", "<workspace>/dsh-plugins"]`). Editing `client.js` reloads in about two seconds; only assembly changes (package name, `dsh.profile.bundles`) still need a restart.
 - `scripts/enable-hmr.ps1`: idempotent helper that writes that override between markers, backs up the patch file first, and can undo (`-Disable`) or preview (`-DryRun`). It refuses to run when the `dsh-hmr` package is missing and prints the exact install command instead.

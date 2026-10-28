@@ -535,6 +535,24 @@ function copyDiagnostics() {
 		}
 
 		/**
+		 * Tag the one view tab that duplicates the title bar's 对话 entry.
+		 * The rest of the strip (轨迹 / 上下文 / 画廊 / 压缩账本) has no other way
+		 * in, so it must stay visible - hiding the whole strip removed features
+		 * that the user relied on.
+		 * @returns {void}
+		 */
+		function syncViewTabs() {
+			const duplicateLabels = new Set(["对话", "对话视图", "chat", "conversation"]);
+			for (const strip of document.querySelectorAll('[class*="_viewTabs"]')) {
+				for (const tab of strip.querySelectorAll("button, [role='tab']")) {
+					const label = (tab.textContent || "").trim().toLowerCase();
+					if (duplicateLabels.has(label)) tab.setAttribute("data-uidy-vtab-dupe", "true");
+					else if (tab.hasAttribute("data-uidy-vtab-dupe")) tab.removeAttribute("data-uidy-vtab-dupe");
+				}
+			}
+		}
+
+		/**
 		 * Whether a shipped-but-rowless panel still has its plugin loaded.
 		 * Without the manifest the answer is yes: a missing manifest must never
 		 * empty the bar.
@@ -546,7 +564,19 @@ function copyDiagnostics() {
 			if (id === "") return true;
 			const entries = readBootEntryIds();
 			if (entries.length === 0) return true;
-			return entries.some((entry) => entry === id || entry.includes(id));
+			/*
+			 * The manifest lists packages, not panels: dsh-bill provides `bill`,
+			 * dsh-novel-writer provides `dsh-novel-writer`. A bare substring test
+			 * made the usage panel look installed whenever any package name merely
+			 * contained "bill" - billion-context was enough - so the bar kept a
+			 * dead button after the user removed the plugin. Compare whole name
+			 * segments instead.
+			 */
+			return entries.some((entry) => {
+				if (entry === id) return true;
+				const segment = entry.slice(entry.lastIndexOf("/") + 1);
+				return segment === id || segment.endsWith("-" + id) || segment.endsWith("." + id) || segment.endsWith("_" + id);
+			});
 		}
 
 		/**
@@ -1583,13 +1613,14 @@ header:has([class*="_titleRow"]) [class*="_headerCorner"]{
  * anchor has nothing left to do.
  */
 /*
- * The conversation view strip holds a single tab, 对话, which is the same
- * destination as the 对话 page button in the title bar. One tab is not a strip;
- * it is a duplicate that also costs a row of header height.
+ * The view strip is no longer hidden. Hiding the whole thing was a mistake: it
+ * carries 轨迹 / 上下文 / 画廊 / 压缩账本, which are real views with no other
+ * entry point. Only the tab whose destination is the 对话 page button in the
+ * title bar is a duplicate - syncViewTabs tags exactly that one, and the strip
+ * itself stays visible and scrollable.
  */
-header:has([class*="_titleRow"]) [class*="_viewTabs"]{display:none !important}
-header:has([class*="_titleRow"]) [aria-label*="会话视图"],
-header:has([class*="_titleRow"]) [aria-label*="View tabs"]{display:none !important}
+header:has([class*="_titleRow"]) [class*="_viewTabs"]{display:flex !important;flex:0 0 auto !important;min-width:0 !important}
+header:has([class*="_titleRow"]) [data-uidy-vtab-dupe="true"]{display:none !important}
 /*
  * Three header chips used to be the only way into things that the title bar now
  * carries: the workflow runner and the sub-agent roster both have a title bar
@@ -2291,6 +2322,7 @@ const MODEL_CSS = `
 			 */
 			syncToolRows();
 			syncTaskChip();
+			syncViewTabs();
 		}
 
 		/**

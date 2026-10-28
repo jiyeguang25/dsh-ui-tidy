@@ -248,6 +248,24 @@ storage.delete("dsh-ui-tidy.safeMode");
 
 unmute();
 
+/* ---------------- contract checks that regressions must not cross ---------------- */
+{
+	// The view strip carries 轨迹 / 上下文 / 画廊, so it must never be hidden whole.
+	check(
+		"view strip stays visible; only the duplicate tab is hidden",
+		src.includes('[class*="_viewTabs"]{display:flex !important') &&
+			src.includes('[data-uidy-vtab-dupe="true"]') &&
+			!/\[class\*="_viewTabs"\]\{display:none/.test(src),
+		"the 对话 duplicate is tagged instead of hiding the strip",
+	);
+	// A substring test let "billion-context" keep the removed bill panel alive.
+	check(
+		"panel liveness compares name segments, not substrings",
+		src.includes('segment.endsWith("-" + id)') && !src.includes("entry === id || entry.includes(id)"),
+		"whole-segment match against the boot manifest",
+	);
+}
+
 /* ---------------- report ---------------- */
 const failed = results.filter((r) => !r.ok);
 for (const r of results) console.log((r.ok ? "PASS  " : "FAIL  ") + r.name + (r.ok || !r.detail ? "" : "  -> " + r.detail));
