@@ -50,7 +50,7 @@ pwsh -File scripts\install.ps1
 # 3. 想看它当前状态：设置 → 顶栏界面 → 最下面的「诊断」，点「复制」
 ```
 
-装坏了、或者想还原：`pwsh -File scripts\uninstall.ps1`（同样只删那两个字段）。
+装坏了、或者想还原：`pwsh -File scripts\uninstall.ps1`（同样只删那两个字段）；想回到某次安装前的 profile：`pwsh -File scripts\restore.ps1 -Latest`（不写盘时先用 `-DryRun`）。
 安装脚本支持 `-DryRun` 只看不改、`-Mode npm` 走 npm 包、`-Profile web` 装到别的 profile。
 
 > 为什么必须重启，而不是刷新：宿主在启动时按文件内容算出 rev，页面按 rev 取 bundle；文件一改 rev 就变，旧 rev 取不到就成了 404。装上 `@deepseek-ai/dsh-hmr` 之后才有热加载。
