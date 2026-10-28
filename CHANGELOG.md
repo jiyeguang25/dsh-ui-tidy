@@ -55,3 +55,7 @@
 - Settings gained 备份与恢复: export the whole state record to the clipboard,
   paste it back to restore, or reset to defaults. Code rollback stays in git;
   this is the settings half of one.
+
+## 0.4.6
+
+- CI 配方从 `.github/workflows/ci.yml` 移到 `ci/github-actions.yml`：当前访问码没有 workflow 权限，放在 workflows 目录会让 push 被 GitHub 拒收。README 说明了启用方式。
