@@ -39,9 +39,29 @@
 
 ---
 
+## 5 分钟上手（不想看下文的话只看这三条）
+
+```powershell
+# 1. 注册到 desktop profile（会先备份 package.json，只改 dependencies 与 dsh.profile.bundles）
+pwsh -File scripts\install.ps1
+
+# 2. 完全退出 DSH，再重新打开（换页面没用，bundle 清单在启动时才算）
+
+# 3. 想看它当前状态：设置 → 顶栏界面 → 最下面的「诊断」，点「复制」
+```
+
+装坏了、或者想还原：`pwsh -File scripts\uninstall.ps1`（同样只删那两个字段）。
+安装脚本支持 `-DryRun` 只看不改、`-Mode npm` 走 npm 包、`-Profile web` 装到别的 profile。
+
+> 为什么必须重启，而不是刷新：宿主在启动时按文件内容算出 rev，页面按 rev 取 bundle；文件一改 rev 就变，旧 rev 取不到就成了 404。装上 `@deepseek-ai/dsh-hmr` 之后才有热加载。
+
 ## 安装
 
-### 方式 A：插件市场里加索引（推荐）
+### 方式 0：一键脚本（推荐给不熟悉 profile 结构的人）
+
+见上面的「5 分钟上手」。等价于手工做两件事：把 `dsh-ui-tidy` 写进 `dependencies`，再追加到 `dsh.profile.bundles`。
+
+### 方式 A：插件市场里加索引
 
 1. 打开 `设置 → 插件`，在「自定义插件市场」的**索引源**里加一条：
 
@@ -72,8 +92,10 @@ pnpm install
 
 ## 生效方式
 
-- 改 `client.js`：宿主重建 bundle 后热重载页面，几秒即可，无需重启。
-- 改包名、`dsh.profile.bundles` 这类**装配信息**：需要重启 DSH Desktop。
+- 改 `client.js`（或任何被启动清单装载的文件）：**必须重启宿主**。宿主按文件内容算 rev，页面按 rev 取 bundle，rev 一改旧缓存就 404，刷新只会卡在 `Loading plugins…`。
+- 装 `@deepseek-ai/dsh-hmr` 后才有热加载（宿主 `clientModules.rebuilt()` 是它的登记钩子）。
+- 改包名、`dsh.profile.bundles` 这类**装配信息**：同样需要重启。
+- 纯设置项（顶栏显示哪些页面、折叠、对齐）：即时生效，不需要重启。
 
 ## 卸载
 

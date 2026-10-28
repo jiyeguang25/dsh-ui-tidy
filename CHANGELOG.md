@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.7
+- `scripts/install.ps1` / `scripts/uninstall.ps1`: register or remove the plugin by touching exactly two fields (`dependencies` and `dsh.profile.bundles`), with a `package.json` backup first and `-DryRun` to preview. Nothing else is modified.
+- Activation is wrapped in a try/catch: a seat that throws now logs `[ui-tidy] activation failed` and leaves the shell running instead of taking the whole entry down.
+- README gets a three-command quick start and an honest note that editing `client.js` needs a host restart (the old text promised a reload, which cannot work because the bundle URL carries a boot-time revision).
+- `docs/ROADMAP.md`: what actually keeps other people out (install, restart, silent breakage, jargon) and what we deliberately will not build.
+
+## 0.4.6
+- Publishing: the CI recipe lives in `ci/github-actions.yml` instead of `.github/workflows/ci.yml`, because the release token has no `workflow` scope and one such file rejects the whole push. README documents how to enable it.
+
+## 0.4.5
+- Settings → 顶栏界面 gains 备份与恢复: export every setting to the clipboard, paste one back, or reset to defaults. Code-level rollback stays with git.
+
+## 0.4.4
+- One tooltip: buttons no longer carry both a native `title` and a custom bubble. The bubble flips inward at the window edges instead of being clipped.
+- One popover positioner (`popoverLeft(anchor, width)`) shared by the menu and the hover bubble, so right-alignment plus clamping is computed once.
 ## 0.4.3
 - One stacking ladder (`--uidy-z-rail/bar/menu/flyout/tooltip`) instead of z-index literals spread over CSS and JS; the cluster lift now measures the shell's own menu strip (`readHostMenuZ() - 10`) so it can never paint over 应用/编辑 again.
 - Boot smoke test shipped in `smoke/smoke-boot.mjs`: loads `client.js` with a stub DOM, runs `apply()`, and asserts the three seats register. CI runs it, so a change that would stop the plugin activating fails before it reaches the shell.
