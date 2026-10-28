@@ -38,7 +38,7 @@
 | 出错不拖垮启动 | `exports.apply` 外层套 try/catch：某个 seat 抛异常只记一条 `console.error`，条目不激活但整壳继续跑 | ✅ 本轮已做 |
 | 一键诊断 | 设置页「诊断」块：宿主席位命中、选择器命中、页面发现数、存储版本，一键复制 JSON。用户报障从「它不工作了」变成一段可读的读数 | ✅ 0.4.2 起 |
 | 设置级回滚 | 设置页「备份与恢复」：导出/导入/恢复默认；代码级回滚交给 git | ✅ 0.4.5 起 |
-| 热加载 | 宿主内建 `clientModules.rebuilt()`，前提是装 `@deepseek-ai/dsh-hmr`。装上后改代码不用重启 | ⬜ 需要你决定装不装（会增加一个宿主插件） |
+| 热加载 | 已装 `@deepseek-ai/dsh-hmr` 0.2.1-rc.3 到 desktop profile，并在 `~/.dsh/profiles/desktop/cordis.patch.yml` 里按 id 覆盖 `hmr` 条目（`disabled: false`、`root: [".", "C:/Users/yeguang/DSH/dsh-plugins"]`）。改 `client.js` 约 2 秒后自动重载；装配信息（包名、bundles）仍需重启 | ✅ 已装，重启一次生效 |
 | 首次使用引导 | 第一次激活时在顶栏旁给一条可关闭的提示：「这里是替代左侧栏的入口，右键/拖拽可以排序」 | ⬜ 待做（半天） |
 
 ### 第 3 层：坏了能自己救（信任门槛）

@@ -53,7 +53,10 @@ pwsh -File scripts\install.ps1
 装坏了、或者想还原：`pwsh -File scripts\uninstall.ps1`（同样只删那两个字段）；想回到某次安装前的 profile：`pwsh -File scripts\restore.ps1 -Latest`（不写盘时先用 `-DryRun`）。
 安装脚本支持 `-DryRun` 只看不改、`-Mode npm` 走 npm 包、`-Profile web` 装到别的 profile。
 
-> 为什么必须重启，而不是刷新：宿主在启动时按文件内容算出 rev，页面按 rev 取 bundle；文件一改 rev 就变，旧 rev 取不到就成了 404。装上 `@deepseek-ai/dsh-hmr` 之后才有热加载。
+> 为什么必须重启，而不是刷新：宿主在启动时按文件内容算出 rev，页面按 rev 取 bundle；文件一改 rev 就变，旧 rev 取不到就成了 404。
+>
+> 本机已装 `@deepseek-ai/dsh-hmr`，并在 profile 的 `cordis.patch.yml` 里按 id 覆盖了 `hmr` 条目（`root` 含插件工作区），所以**改 `client.js` 不用再重启**：保存后约 2 秒自动重载。只有改装配信息（包名、`dsh.profile.bundles`）才需要重启。
+> 想临时关掉热加载：把那条 `hmr` 覆盖改成 `disabled: true`，或删掉 `- id: hmr` 这一段。
 
 ## 安装
 
@@ -92,9 +95,9 @@ pnpm install
 
 ## 生效方式
 
-- 改 `client.js`（或任何被启动清单装载的文件）：**必须重启宿主**。宿主按文件内容算 rev，页面按 rev 取 bundle，rev 一改旧缓存就 404，刷新只会卡在 `Loading plugins…`。
-- 装 `@deepseek-ai/dsh-hmr` 后才有热加载（宿主 `clientModules.rebuilt()` 是它的登记钩子）。
-- 改包名、`dsh.profile.bundles` 这类**装配信息**：同样需要重启。
+- 改 `client.js`：**本机已启用热加载**，保存后约 2 秒自动重载，不必重启。前提是 `@deepseek-ai/dsh-hmr` 在 profile 里、且 `cordis.patch.yml` 有那条 `- id: hmr` 覆盖（`root` 需包含插件所在目录）。
+- 没装 HMR 的机器上改 `client.js` 仍要重启宿主：宿主按文件内容算 rev，页面按 rev 取 bundle，rev 一改旧缓存就 404，刷新只会卡在 `Loading plugins…`。
+- 改包名、`dsh.profile.bundles` 这类**装配信息**：任何情况下都需要重启。
 - 纯设置项（顶栏显示哪些页面、折叠、对齐）：即时生效，不需要重启。
 
 ## 卸载
