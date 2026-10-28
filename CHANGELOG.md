@@ -49,3 +49,9 @@
   off the window edge.
 - Popup placement moved into `popoverLeft(anchor, width)`, one function that
   both right-aligns under its button and clamps to the window.
+
+## 0.4.5
+
+- Settings gained 备份与恢复: export the whole state record to the clipboard,
+  paste it back to restore, or reset to defaults. Code rollback stays in git;
+  this is the settings half of one.
