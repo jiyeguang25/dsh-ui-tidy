@@ -250,13 +250,14 @@ unmute();
 
 /* ---------------- contract checks that regressions must not cross ---------------- */
 {
-	// The view strip carries 轨迹 / 上下文 / 画廊, so it must never be hidden whole.
+	// The strip switches the VIEW inside a panel; the title bar switches the PANEL.
+	// Hiding its 对话 tab stranded anyone who opened 轨迹, so no tab may be pruned.
 	check(
-		"view strip stays visible; only the duplicate tab is hidden",
+		"view strip stays complete and visible",
 		src.includes('[class*="_viewTabs"]{display:flex !important') &&
-			src.includes('[data-uidy-vtab-dupe="true"]') &&
-			!/\[class\*="_viewTabs"\]\{display:none/.test(src),
-		"the 对话 duplicate is tagged instead of hiding the strip",
+			!/\[class\*="_viewTabs"\]\{display:none/.test(src) &&
+			!src.includes("data-uidy-vtab-dupe"),
+		"all view tabs render; none is hidden as a duplicate",
 	);
 	// A substring test let "billion-context" keep the removed bill panel alive.
 	check(

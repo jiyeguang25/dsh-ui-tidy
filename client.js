@@ -535,24 +535,6 @@ function copyDiagnostics() {
 		}
 
 		/**
-		 * Tag the one view tab that duplicates the title bar's 对话 entry.
-		 * The rest of the strip (轨迹 / 上下文 / 画廊 / 压缩账本) has no other way
-		 * in, so it must stay visible - hiding the whole strip removed features
-		 * that the user relied on.
-		 * @returns {void}
-		 */
-		function syncViewTabs() {
-			const duplicateLabels = new Set(["对话", "对话视图", "chat", "conversation"]);
-			for (const strip of document.querySelectorAll('[class*="_viewTabs"]')) {
-				for (const tab of strip.querySelectorAll("button, [role='tab']")) {
-					const label = (tab.textContent || "").trim().toLowerCase();
-					if (duplicateLabels.has(label)) tab.setAttribute("data-uidy-vtab-dupe", "true");
-					else if (tab.hasAttribute("data-uidy-vtab-dupe")) tab.removeAttribute("data-uidy-vtab-dupe");
-				}
-			}
-		}
-
-		/**
 		 * Whether a shipped-but-rowless panel still has its plugin loaded.
 		 * Without the manifest the answer is yes: a missing manifest must never
 		 * empty the bar.
@@ -1613,14 +1595,13 @@ header:has([class*="_titleRow"]) [class*="_headerCorner"]{
  * anchor has nothing left to do.
  */
 /*
- * The view strip is no longer hidden. Hiding the whole thing was a mistake: it
- * carries 轨迹 / 上下文 / 画廊 / 压缩账本, which are real views with no other
- * entry point. Only the tab whose destination is the 对话 page button in the
- * title bar is a duplicate - syncViewTabs tags exactly that one, and the strip
- * itself stays visible and scrollable.
+ * The view strip is never hidden and never pruned. It looks like a duplicate of
+ * the 对话 page button, but it is not the same control: the title bar switches
+ * the PANEL, the strip switches the VIEW inside it. Hiding the 对话 tab left
+ * anyone who opened 轨迹 with no way back, because the strip is the only place
+ * that control lives. Keep all of it visible and scrollable.
  */
 header:has([class*="_titleRow"]) [class*="_viewTabs"]{display:flex !important;flex:0 0 auto !important;min-width:0 !important}
-header:has([class*="_titleRow"]) [data-uidy-vtab-dupe="true"]{display:none !important}
 /*
  * Three header chips used to be the only way into things that the title bar now
  * carries: the workflow runner and the sub-agent roster both have a title bar
@@ -2322,7 +2303,6 @@ const MODEL_CSS = `
 			 */
 			syncToolRows();
 			syncTaskChip();
-			syncViewTabs();
 		}
 
 		/**
