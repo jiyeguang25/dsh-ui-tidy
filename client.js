@@ -1732,9 +1732,9 @@ header:has([class*="_titleRow"]) .dsh-sam-trigger{display:inline-flex !important
   height:24px !important;padding:0 8px !important;border-radius:6px !important;font-size:12px !important;line-height:1 !important;
   border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28)) !important;background:transparent !important;
   color:var(--dsw-alias-label-secondary,inherit) !important}
-header:has([class*="_titleRow"]) .dsh-sam-trigger:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.16)) !important;
+html[data-uidy-on] header:has([class*="_titleRow"]) .dsh-sam-trigger:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.16)) !important;
   color:var(--dsw-alias-label-primary,inherit) !important}
-header:has([class*="_titleRow"]) .dsh-sam-trigger .dsh-sam-icon{font-size:12px !important}
+html[data-uidy-on] header:has([class*="_titleRow"]) .dsh-sam-trigger .dsh-sam-icon{font-size:12px !important}
 /*
  * The background-task chip keeps its spinner and its count, but the sentence
  * around it ("1 个后台任务运行中") is wider than the room it leaves in the
@@ -3483,14 +3483,14 @@ const CUSTOM_CSS = [
 	".uidy-page[data-name]:hover::after{content:attr(data-name);position:absolute;top:32px;left:50%;transform:translateX(-50%);padding:3px 8px;border-radius:6px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#2a2a2a);color:var(--dsw-alias-label-primary,#fff);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:var(--dsw-shadow-lv2,0 4px 12px rgba(0,0,0,.25));pointer-events:none;z-index:var(--uidy-z-tooltip,1300)}",
 	'.uidy-page[data-tip="left"]:hover::after{left:0;transform:none}',
 	'.uidy-page[data-tip="right"]:hover::after{left:auto;right:0;transform:none}',
-	"/* the subagent drawer opens below the title bar and the session row, so its own close button never lands on the window controls */",
-	".dsh-sam-backdrop{top:84px !important}",
-	".dsh-sam-panel{height:100% !important;border-top-left-radius:12px}",
+	"/* Rules that touch another plugin's own classes are gated on html[data-uidy-on], so they vanish on unload. */",
+	"html[data-uidy-on] .dsh-sam-backdrop{top:84px !important}",
+	"html[data-uidy-on] .dsh-sam-panel{height:100% !important;border-top-left-radius:12px}",
 	"/* the memory sheet: a sheet, not a takeover - the page behind stays legible */",
-	".mneme-backdrop{background:rgba(0,0,0,.14) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}",
+	"html[data-uidy-on] .mneme-backdrop{background:rgba(0,0,0,.14) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}",
 	/* The shell sizes the sheet for a frame that starts at y=0; pinning only the top left the
 	 * lower half hanging outside the viewport. Both edges are pinned and the body scrolls. */
-	".mneme-overlay{top:50% !important;left:50% !important;right:auto !important;bottom:auto !important;transform:translate(-50%,-50%) !important;height:auto !important;max-height:calc(100vh - 96px) !important;width:min(1080px,calc(100vw - 96px)) !important;border-radius:14px !important;overflow:auto !important}",
+	"html[data-uidy-on] .mneme-overlay{top:50% !important;left:50% !important;right:auto !important;bottom:auto !important;transform:translate(-50%,-50%) !important;height:auto !important;max-height:calc(100vh - 96px) !important;width:min(1080px,calc(100vw - 96px)) !important;border-radius:14px !important;overflow:auto !important}",
 ].join("\n");
 
 function loadCustom() {
@@ -4638,6 +4638,47 @@ customGlyph(action)
 			}
 		}
 
+		/*
+		 * One bad render must not take a whole host slot down with it. `apply` is
+		 * already guarded, but that only covers registration: a throw inside a seat
+		 * would propagate into the host's slot and can blank the title bar, which a
+		 * user can only escape by resetting the profile.
+		 *
+		 * The base class is resolved defensively: the smoke harness stubs `react`
+		 * without `Component`, and a module-level `extends undefined` would take the
+		 * whole entry down before any check could run.
+		 */
+		const ReactBase = react !== null && typeof react === "object" && typeof react.Component === "function" ? react.Component : class {};
+
+		class SeatBoundary extends ReactBase {
+			constructor(props) {
+				super(props);
+				this.state = { failed: false };
+			}
+			static getDerivedStateFromError() {
+				return { failed: true };
+			}
+			componentDidCatch(error) {
+				console.warn("[ui-tidy] a seat failed; the shell keeps running:", error);
+			}
+			render() {
+				return this.state.failed === true ? null : this.props.children;
+			}
+		}
+
+		/**
+		 * Wrap a seat component in its own error boundary.
+		 * @param component - the seat component.
+		 * @returns a component that renders nothing after a failure.
+		 */
+		function wrapSeat(component) {
+			function BoundedSeat(props) {
+				return h(SeatBoundary, null, h(component, props));
+			}
+			BoundedSeat.displayName = "UiTidyBoundedSeat";
+			return BoundedSeat;
+		}
+
 		function apply(ctx) {
 			rootCtx = ctx;
 			const safeMode = readSafeMode();
@@ -4645,6 +4686,8 @@ customGlyph(action)
 				console.warn("[ui-tidy] skipped entirely: safe mode is on (?uidy=off, or dsh-ui-tidy.safeMode=off).");
 				return;
 			}
+			/* Gate for every rule that touches another plugin's own classes. */
+			document.documentElement.setAttribute("data-uidy-on", "");
 			/*
 			 * The sub-agent drawer dims the frame with its own backdrop, but that
 			 * backdrop only answers clicks on the strip beside the drawer. Any click
@@ -4802,7 +4845,7 @@ customGlyph(action)
 			const disposers = [];
 			const register = (seat, options, component) => {
 				try {
-					disposers.push(ctx.slots.inject(seat, () => ctx.slots.register({ name: seat, ...options }, component)));
+					disposers.push(ctx.slots.inject(seat, () => ctx.slots.register({ name: seat, ...options }, wrapSeat(component))));
 				} catch (error) {
 					console.warn(`[ui-tidy] registration failed for ${seat}:`, error);
 				}
@@ -4822,6 +4865,10 @@ customGlyph(action)
 							/* already released */
 						}
 					}
+					/* Nothing of ours may outlive the plugin, including the gate that
+					 * switches other plugins' courtesy rules on. */
+					document.documentElement.removeAttribute("data-uidy-on");
+					flushPendingWrite();
 				},
 				"ui-tidy: mounts"
 			);

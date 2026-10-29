@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.15
+- Each of the three seats (top bar, overlay, settings page) now renders inside its own error boundary. `apply` was guarded, but that only covered registration: a throw during render used to propagate into the host slot and could blank the title bar, which a user can only escape by resetting the profile. A failed seat now logs one line and renders nothing.
+- Rules that reach into other plugins' own classes (`.dsh-sam-*`, `.mneme-*`) are gated on `html[data-uidy-on]`, which is set when the plugin applies and removed when it unloads. They used to compete at `!important` weight for as long as the page lived, even after this plugin was gone.
+- The defensive base class in the boundary also keeps the module loadable under the smoke harness, which stubs React without `Component`.
+- Smoke contract: 25 checks, adding "every seat renders inside an error boundary" and "rules touching other plugins are gated on our own attribute".
+
 ## 0.4.14
 - Folding a provider is cheap now. One press used to rewrite `data-uidy-hidden` on every row of the whole list (about forty display-affecting attributes), persist the record with `JSON.stringify` + `localStorage.setItem` inside the handler, and notify our own subscribers. Now:
   - the fold is a single attribute on the group (`[data-uidy-group][data-uidy-collapsed="true"]` hides its rows), so the browser does one style pass instead of forty;

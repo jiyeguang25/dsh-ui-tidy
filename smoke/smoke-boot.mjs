@@ -302,6 +302,24 @@ unmute();
 		src.includes('target.closest("[data-uidy-group]") === null) return;'),
 		"a foreign _heading element keeps its click",
 	);
+
+	check(
+		"every seat renders inside an error boundary",
+		src.includes("class SeatBoundary extends") &&
+			src.includes("getDerivedStateFromError") &&
+			src.includes("wrapSeat(component)") &&
+			src.includes("wrapSeat("),
+		"a throwing panel cannot blank the host slot it lives in",
+	);
+
+	check(
+		"rules touching other plugins are gated on our own attribute",
+		src.includes("html[data-uidy-on] .mneme-overlay") &&
+			src.includes("html[data-uidy-on] .dsh-sam-backdrop") &&
+			src.includes('setAttribute("data-uidy-on"') &&
+			src.includes('removeAttribute("data-uidy-on")'),
+		"courtesy rules disappear together with the plugin",
+	);
 }
 
 /* ---------------- report ---------------- */
