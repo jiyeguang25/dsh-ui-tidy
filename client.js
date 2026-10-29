@@ -1699,11 +1699,18 @@ const RIGHTBAR_CSS = "";
 /* the session browser needs room for the tree, not just for a command list */
 .uidy-menu-sessions{width:320px}
 .uidy-menu-sessions .uidy-sessions{max-height:min(46vh,380px)}
-/* the page/feature list carries a label AND an 打开 button, so it needs to be wider */
-.uidy-menu-custom{width:348px}
-/* selection is the row's own highlight - no tick mark - so it reads the same as the host menus */
-.uidy-item-on{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.14))}
-.uidy-item-on .uidy-item-ico{color:var(--dsw-alias-brand-primary,#4d6bfe)}
+/* The list carries a label AND an 打开 button, so it keeps its own (narrow) width. */
+.uidy-menu-custom{width:288px}
+/* Rows are width:100% content-box, so their padding pushed them 8px past the panel and
+   produced a horizontal scrollbar. Stretching them to the column width in border-box
+   keeps the row inside the panel. */
+.uidy-menu-custom .uidy-item{width:auto;align-self:stretch;box-sizing:border-box}
+/* Selection is the row's own highlight - no tick mark - so it reads like the host menus.
+   Two classes deep on purpose: .uidy-item sets background:transparent further down this
+   sheet, and an equal-specificity rule declared earlier would lose to it. */
+.uidy-item.uidy-item-on{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.18))}
+.uidy-item.uidy-item-on:hover{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.24))}
+.uidy-item.uidy-item-on > .uidy-item-ico{color:var(--dsw-alias-brand-primary,#4d6bfe)}
 .uidy-custom-run{margin-left:auto;flex:0 0 auto;height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}
 .uidy-custom-run:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.18))}
 .uidy-custom-hint{margin:6px 8px 2px;font-size:12px;line-height:1.5;opacity:.6;white-space:normal}
