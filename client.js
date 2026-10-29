@@ -335,6 +335,45 @@ function writeState(patch) {
 	return next;
 }
 
+/*
+ * Persisting on every click meant a JSON.stringify of the whole record plus a
+ * synchronous localStorage write inside the press handler - measurable lag on a
+ * list that is being folded. The in-memory record stays authoritative; the write
+ * trails the last change by a moment, and is flushed on pagehide/unload so nothing
+ * is lost if the window closes first.
+ */
+let pendingState = null;
+let pendingTimer = 0;
+
+function flushPendingWrite() {
+	if (pendingTimer !== 0) {
+		clearTimeout(pendingTimer);
+		pendingTimer = 0;
+	}
+	if (pendingState === null) return;
+	const next = pendingState;
+	pendingState = null;
+	persistState(next);
+}
+
+function queueWriteState(patch) {
+	const base = pendingState !== null ? pendingState : readState();
+	pendingState = { ...base, ...patch, version: STATE_VERSION };
+	if (pendingTimer !== 0) return;
+	pendingTimer = setTimeout(() => {
+		pendingTimer = 0;
+		flushPendingWrite();
+	}, 400);
+}
+
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+	window.addEventListener("pagehide", flushPendingWrite);
+	window.addEventListener("beforeunload", flushPendingWrite);
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState === "hidden") flushPendingWrite();
+	});
+}
+
 /** Read a record field, falling back when it is missing or of the wrong shape. */
 function readField(name, fallback) {
 	const value = readState()[name];
@@ -1005,7 +1044,7 @@ function copyDiagnostics() {
 		 * @returns {void}
 		 */
 		function commitPrefs() {
-			writeState({ prefs });
+			queueWriteState({ prefs });
 			prefsStore.bump();
 		}
 
@@ -1114,7 +1153,13 @@ function syncModelOptions(menu, firstGroup) {
 	}
 }
 
-		function applyModelMenus() {
+		/**
+		 * Decorate every open model list.
+		 * @param onlyKey - when given, only writes to that provider's groups, which is
+		 *   what a single fold press needs; the rest of the list is already correct.
+		 * @returns how many lists were decorated.
+		 */
+		function applyModelMenus(onlyKey) {
 			let menus = [];
 			try {
 				menus = Array.prototype.slice.call(document.querySelectorAll(MODEL_MENU_SELECTOR));
@@ -1140,6 +1185,15 @@ function syncModelOptions(menu, firstGroup) {
 			for (const menu of menus) {
 				const groups = modelGroups(menu);
 				if (groups.length === 0) continue;
+				/*
+				 * Nothing to do when neither the switches nor the list changed. The
+				 * observer wakes on every body mutation - a streaming answer fires it
+				 * dozens of times a second - so a pass that would rewrite the same
+				 * forty attributes is pure cost.
+				 */
+				const foldSig = groups.length + ":" + MODEL_TOGGLES.map((toggle) => (prefs[toggle.key] === true ? "1" : "0")).join("");
+				if (onlyKey === undefined && menu.getAttribute("data-uidy-dsig") === foldSig) continue;
+				menu.setAttribute("data-uidy-dsig", foldSig);
 				touched += 1;
 				syncModelOptions(menu, groups[0]);
 				const ownerByKey = new Map();
@@ -1177,6 +1231,7 @@ function syncModelOptions(menu, firstGroup) {
 					 * Otherwise the older per-key `collapsed` map decides.
 					 */
 					const source = record.owner === null ? record : record.owner;
+					if (onlyKey !== undefined && onlyKey !== null && source.key !== onlyKey) continue;
 					const collapsed = prefs.collapse
 						? prefs.collapseAll
 							? prefs.expanded[source.key] !== true
@@ -1189,9 +1244,10 @@ function syncModelOptions(menu, firstGroup) {
 				}
 				for (const record of records) {
 					const source = record.owner === null ? record : record.owner;
+					if (onlyKey !== undefined && onlyKey !== null && source.key !== onlyKey) continue;
 					for (const row of record.rows) {
 						if (record.owner !== null) row.setAttribute("data-uidy-src", record.title);
-						else row.removeAttribute("data-uidy-src");
+						else if (row.hasAttribute("data-uidy-src")) row.removeAttribute("data-uidy-src");
 						const label = String(row.textContent || "").replace(/\s+/g, " ").trim();
 						/*
 						 * A model the owning provider already lists would show up twice
@@ -1200,7 +1256,14 @@ function syncModelOptions(menu, firstGroup) {
 						const repeat = record.owner !== null && label !== "" && source.labels.has(label);
 						const duplicate = prefs.dedupe && label !== "" && seenLabels.has(label);
 						if (label !== "" && !duplicate) seenLabels.add(label);
-						row.setAttribute("data-uidy-hidden", source.collapsed || repeat || duplicate ? "true" : "false");
+						/*
+						 * Folding is expressed once, on the group, and the stylesheet hides
+						 * the rows of a folded group. Writing display-affecting attributes on
+						 * forty rows per press was the visible cost of clicking a provider.
+						 */
+						const hide = repeat || duplicate;
+						if (hide) row.setAttribute("data-uidy-hidden", "true");
+						else if (row.hasAttribute("data-uidy-hidden")) row.removeAttribute("data-uidy-hidden");
 					}
 				}
 			}
@@ -1220,9 +1283,9 @@ function syncModelOptions(menu, firstGroup) {
 			 * list would then stay undecorated until the user restores it. A
 			 * timer has no such condition.
 			 */
-			const applyNow = () => {
+			const applyNow = (onlyKey) => {
 				try {
-					applyModelMenus();
+					applyModelMenus(onlyKey);
 				} catch (error) {
 					console.warn("[ui-tidy] model menu decoration failed:", error);
 				}
@@ -1304,8 +1367,15 @@ function syncModelOptions(menu, firstGroup) {
 					if (prefs.collapsed[key] === true) delete prefs.collapsed[key];
 					else prefs.collapsed[key] = true;
 				}
-				commitPrefs();
-				applyNow();
+				/*
+				 * No prefsStore.bump() here: nothing in our own UI shows a provider's
+				 * fold state, so notifying subscribers would only re-render an open
+				 * menu for nothing.
+				 */
+				queueWriteState({ prefs });
+				/* Only this provider changed; decorating the other fifteen lists would
+				 * be work the user cannot see and waits for. */
+				applyNow(key);
 				schedule();
 			};
 			const swallowClick = (event) => {
@@ -1842,6 +1912,12 @@ const MODEL_CSS = `
 [data-uidy-merged="true"]{display:contents !important}
 [data-uidy-merged="true"] > [class*="_heading"]{display:none}
 [data-uidy-hidden="true"]{display:none !important}
+/*
+ * Folding is one attribute on the group, not forty attributes on the rows: the
+ * browser hides the whole subtree in a single style pass, which is what makes a
+ * press on a provider name feel instant instead of sticky.
+ */
+[data-uidy-group][data-uidy-collapsed="true"] > [class*="_modelOption"]{display:none !important}
 [data-uidy-src]::after{content:"· " attr(data-uidy-src);margin-left:6px;font-size:11px;opacity:.6}
 `;
 

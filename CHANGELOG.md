@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.14
+- Folding a provider is cheap now. One press used to rewrite `data-uidy-hidden` on every row of the whole list (about forty display-affecting attributes), persist the record with `JSON.stringify` + `localStorage.setItem` inside the handler, and notify our own subscribers. Now:
+  - the fold is a single attribute on the group (`[data-uidy-group][data-uidy-collapsed="true"]` hides its rows), so the browser does one style pass instead of forty;
+  - only the pressed provider is decorated (`applyModelMenus(onlyKey)`);
+  - the write is deferred ~400 ms and flushed on `pagehide` / `beforeunload` / tab hide, so closing the window still keeps the last click;
+  - `prefsStore.bump()` is no longer called from the press path: nothing in our own UI shows a provider's fold state;
+  - a menu whose switches and group count did not change is skipped outright (`data-uidy-dsig`), which reduces the observer's wake-ups during streaming output to a string comparison.
+
 ## 0.4.13
 - The selected row is finally the same colour as the rest of the shell. It used `--dsw-alias-interactive-bg-selected`, which this host theme does not define, so every "highlighted" row silently rendered as a hard-coded blue while the theme's brand is near-white. It now uses `--dsw-alias-interactive-bg-active` (measured `rgba(255,255,255,0.14)`).
 - The model picker's option rows follow the same rule: no `✓`, the row itself is highlighted (`.uidy-opts-row-on`).
