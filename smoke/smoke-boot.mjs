@@ -268,16 +268,39 @@ unmute();
 
 	check(
 		"selection is a row highlight, not a tick",
-		src.includes(".uidy-item-on{background:") &&
+		src.includes(".uidy-item.uidy-item-on{background:") &&
 			src.includes(".uidy-set-check-on{background:") &&
-			!src.includes('on ? h(Icon, { name: "check" }) : null'),
-		"checked rows use uidy-item-on / uidy-set-check-on and no check glyph",
+			!src.includes('on ? h(Icon, { name: "check" }) : null') &&
+			!src.includes('mark.textContent = on ? "✓"'),
+		"rows are highlighted, no check glyph anywhere",
 	);
 
 	check(
 		"per-row 打开 button sits at the right edge",
 		src.includes(".uidy-custom-run{margin-left:auto") && src.includes("uidy-menu-custom{width:"),
-		"custom list is 348px and the run button is pushed right",
+		"custom list is 288px wide and the run button is pushed right",
+	);
+
+	check(
+		"selection uses a theme token that exists",
+		!src.includes("--dsw-alias-interactive-bg-selected") && src.includes("var(--dsw-alias-interactive-bg-active"),
+		"the host theme defines -active, not -selected",
+	);
+
+	check(
+		"unload restores everything the plugin took over",
+		src.includes("if (frameTrackObserver !== null)") &&
+			src.includes("removeProperty(CAPTION_RESERVE_VAR)") &&
+			src.includes("style[data-uidy-menubar-style]") &&
+			src.includes("revealRightPanes();") &&
+			src.includes("releaseViewOptions();"),
+		"observer, html vars, injected sheet, host panes and the docked panel are released",
+	);
+
+	check(
+		"click swallowing is scoped to decorated providers",
+		src.includes('target.closest("[data-uidy-group]") === null) return;'),
+		"a foreign _heading element keeps its click",
 	);
 }
 

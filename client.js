@@ -1091,12 +1091,12 @@ function syncModelOptions(menu, firstGroup) {
 		const on = prefs[toggle.key] === true;
 		const row = document.createElement("button");
 		row.type = "button";
-		row.className = "uidy-opts-row";
+		/* Same language as the popup menus: the row itself is the state, no tick mark. */
+		row.className = on ? "uidy-opts-row uidy-opts-row-on" : "uidy-opts-row";
 		row.setAttribute("role", "menuitemcheckbox");
 		row.setAttribute("aria-checked", on ? "true" : "false");
 		const mark = document.createElement("span");
 		mark.className = "uidy-opts-check";
-		mark.textContent = on ? "✓" : "";
 		const text = document.createElement("span");
 		text.textContent = tt(toggle.label);
 		row.appendChild(mark);
@@ -1312,6 +1312,13 @@ function syncModelOptions(menu, firstGroup) {
 				const target = event.target;
 				if (target === null || typeof target.closest !== "function") return;
 				if (target.closest(MODEL_HEADING_SELECTOR) === null) return;
+				/*
+				 * Only a heading that belongs to a decorated provider group may be
+				 * swallowed. Without this gate, any host or third-party element whose
+				 * class happens to contain "_heading" lost its click in the capture
+				 * phase - a button that looks alive and does nothing.
+				 */
+				if (target.closest("[data-uidy-group]") === null) return;
 				event.preventDefault();
 				event.stopImmediatePropagation();
 			};
@@ -1691,11 +1698,13 @@ header:has([class*="_titleRow"]) .mOxcpG_split{width:23px !important}
 const RIGHTBAR_CSS = "";
 
 		const POPUP_CSS = `
-.uidy-menu{display:flex;flex-direction:column;gap:1px;min-width:236px;max-height:min(72vh,600px);overflow-y:auto;padding:4px;border-radius:10px;position:relative;
-  border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));
-  background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-overlay,#ffffff));
-  box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:13px}
+.uidy-menu{box-sizing:border-box;display:flex;flex-direction:column;gap:1px;min-width:236px;max-height:min(72vh,600px);overflow-y:auto;padding:4px;border-radius:var(--dsw-radius-md,12px);position:relative;
+  border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));
+  background:var(--dsw-menu-surface-fill,var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-overlay,#ffffff)));
+  backdrop-filter:var(--dsw-menu-backdrop-filter,none);
+  box-shadow:var(--dsh-glass-drop,var(--dsw-shadow-lv3,0 8px 28px rgba(0,0,0,.18)));font-size:13px}
 .uidy-menu-fixed{position:fixed;z-index:var(--uidy-z-menu,1200)}
+.uidy-menu:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4d6bfe);outline-offset:1px}
 /* the session browser needs room for the tree, not just for a command list */
 .uidy-menu-sessions{width:320px}
 .uidy-menu-sessions .uidy-sessions{max-height:min(46vh,380px)}
@@ -1708,12 +1717,14 @@ const RIGHTBAR_CSS = "";
 /* Selection is the row's own highlight - no tick mark - so it reads like the host menus.
    Two classes deep on purpose: .uidy-item sets background:transparent further down this
    sheet, and an equal-specificity rule declared earlier would lose to it. */
-.uidy-item.uidy-item-on{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.18))}
-.uidy-item.uidy-item-on:hover{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.24))}
+.uidy-item.uidy-item-on{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.18))}
+.uidy-item.uidy-item-on:hover{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.24))}
 .uidy-item.uidy-item-on > .uidy-item-ico{color:var(--dsw-alias-brand-primary,#4d6bfe)}
-.uidy-custom-run{margin-left:auto;flex:0 0 auto;height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}
+.uidy-custom-run{margin-left:auto;flex:0 0 auto;height:22px;padding:0 8px;border-radius:var(--dsw-radius-sm,8px);border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.35));background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}
 .uidy-custom-run:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.18))}
-.uidy-custom-hint{margin:6px 8px 2px;font-size:12px;line-height:1.5;opacity:.6;white-space:normal}
+.uidy-custom-run:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4d6bfe);outline-offset:1px}
+.uidy-custom-run[disabled]{opacity:.5;cursor:not-allowed}
+.uidy-custom-hint{margin:6px 8px 2px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,inherit);white-space:normal}
 .uidy-tools{display:flex;gap:6px;padding:2px 8px 4px}
 .uidy-tool{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}
 .uidy-tool:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.18))}
@@ -1728,7 +1739,7 @@ const RIGHTBAR_CSS = "";
  * container scrolls the way it was meant to.
  */
 .uidy-menu > *{flex:0 0 auto}
-.uidy-item{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 8px;border:0;border-radius:6px;
+.uidy-item{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 8px;border:0;border-radius:var(--dsw-radius-sm,8px);
   flex:0 0 auto;
   background:transparent;color:var(--dsw-alias-label-primary,inherit);font:inherit;font-size:13px;text-align:left;cursor:pointer}
 .uidy-item:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14))}
@@ -2672,6 +2683,14 @@ function styleMenuBar(bar, shadow) {
 				const shadow = host === null ? null : host.shadowRoot;
 				if (shadow === null) return;
 				for (const button of shadow.querySelectorAll(`[${MENU_BUTTON_ATTR}]`)) button.remove();
+				/*
+				 * The injected sheet restyled the shell's own 应用/编辑 buttons, and
+				 * the marker on them is ours too. Both outlive the plugin unless they
+				 * are removed here: the host never rewrites its shadow sheet.
+				 */
+				const sheet = shadow.querySelector("style[data-uidy-menubar-style]");
+				if (sheet !== null) sheet.remove();
+				for (const marked of shadow.querySelectorAll("[data-uidy-menubar-btn]")) marked.removeAttribute("data-uidy-menubar-btn");
 			};
 
 			if (attempt()) return dispose;
@@ -3342,8 +3361,11 @@ const CUSTOM_CSS = [
 	"/* icon only buttons: the title bar shows glyphs, the name comes on hover */",
 	"/* provider-list settings, drawn inside the picker itself */",
 	".uidy-opts-title{padding:6px 10px 2px;font-size:12px;opacity:.6}",
-	".uidy-opts-row{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:13px;text-align:left;cursor:pointer}",
-	".uidy-opts-row:hover{background:rgba(127,127,127,0.16)}",
+	".uidy-opts-row{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 10px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;font:inherit;font-size:13px;text-align:left;cursor:pointer}",
+	".uidy-opts-row:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,0.16))}",
+	".uidy-opts-row:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4d6bfe);outline-offset:1px}",
+	".uidy-opts-row-on{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.14))}",
+	".uidy-opts-row-on:hover{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.2))}",
 	".uidy-opts-check{display:inline-flex;width:14px;justify-content:center;opacity:.9}",
 	".uidy-item-tag{margin-left:auto;font-size:11px;opacity:.55}",
 	".uidy-page-icon{width:28px;padding:0;justify-content:center;gap:0}",
@@ -3364,9 +3386,10 @@ const CUSTOM_CSS = [
 	 * host's own menus mark the current item the same way, and a 14px checkbox
 	 * was the only control on the page that looked foreign.
 	 */
-	".uidy-set-check{display:flex;align-items:center;gap:8px;min-height:28px;margin:1px 0;padding:0 8px;border-radius:6px;cursor:pointer}",
+	".uidy-set-check{display:flex;align-items:center;gap:8px;min-height:28px;margin:1px 0;padding:0 8px;border-radius:var(--dsw-radius-sm,8px);cursor:pointer}",
+	".uidy-set-check:focus-within{outline:2px solid var(--dsw-alias-brand-primary,#4d6bfe);outline-offset:1px}",
 	".uidy-set-check:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14))}",
-	".uidy-set-check-on{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.14))}",
+	".uidy-set-check-on{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.14))}",
 	".uidy-set-check > input[type=checkbox]{display:none}",
 	".uidy-set-row > select,.uidy-set-row > input[type=number]{height:26px;border-radius:6px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;font:inherit;font-size:13px;padding:0 6px;cursor:pointer}",
 	".uidy-set-row > input[type=number]{width:72px;cursor:text}",
@@ -4622,6 +4645,16 @@ customGlyph(action)
 				return () => {
 					clearTimeout(frame);
 					window.removeEventListener("resize", onResize);
+					/*
+					 * Give the host its own values back. Leaving these three inline
+					 * properties behind is exactly what makes an unloaded plugin look
+					 * like it is still installed: the title bar keeps its 10px menu
+					 * offset until the page is reloaded.
+					 */
+					const root = document.documentElement.style;
+					root.removeProperty("--dsh-windows-menu-start");
+					root.removeProperty(CAPTION_RESERVE_VAR);
+					root.removeProperty(CLUSTER_LIMIT_VAR);
 				};
 			}, "ui-tidy: caption reserve");
 
@@ -4648,6 +4681,30 @@ customGlyph(action)
 				return () => {
 					observer.disconnect();
 					restoreShippedSidebar();
+					/*
+					 * The frame-track observer and the docked view-options panel are
+					 * owned by this plugin, not by React, so nothing else will ever
+					 * release them. Without this block a hot reload or a disabled
+					 * plugin keeps rewriting the host frame and keeps host panes at
+					 * display:none.
+					 */
+					const frameNode = frameTrackTarget;
+					if (frameTrackObserver !== null) {
+						frameTrackObserver.disconnect();
+						frameTrackObserver = null;
+					}
+					frameTrackTarget = null;
+					try {
+						revealRightPanes();
+						releaseViewOptions();
+					} catch (error) {
+						console.warn("[ui-tidy] frame cleanup failed:", error);
+					}
+					if (frameNode !== null && frameNode instanceof HTMLElement) frameNode.style.removeProperty(RB_TRACK_VAR);
+					for (const pane of document.querySelectorAll("[data-uidy-rb-pane-hidden]")) {
+						pane.removeAttribute("data-uidy-rb-pane-hidden");
+						pane.style.removeProperty("display");
+					}
 				};
 			}, "ui-tidy: sidebar removal");
 
@@ -4704,6 +4761,8 @@ const BOOT_ATTR = "data-uidy-booting";
 
 function dressEarly() {
 	try {
+		/* Re-evaluating the module (hot reload) must not stack another copy of this. */
+		if (document.querySelector("style[data-uidy-early]") !== null) return;
 		const style = document.createElement("style");
 		style.setAttribute("data-uidy-early", "");
 		style.textContent = `html[${BOOT_ATTR}] #root{visibility:hidden !important}`;

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.13
+- The selected row is finally the same colour as the rest of the shell. It used `--dsw-alias-interactive-bg-selected`, which this host theme does not define, so every "highlighted" row silently rendered as a hard-coded blue while the theme's brand is near-white. It now uses `--dsw-alias-interactive-bg-active` (measured `rgba(255,255,255,0.14)`).
+- The model picker's option rows follow the same rule: no `✓`, the row itself is highlighted (`.uidy-opts-row-on`).
+- The custom list is 288px *outside* now. It was content-box, so the panel actually measured 297.3px and every row sat 9px past it.
+- Panels borrow the host's menu material (`--dsw-menu-surface-fill`, `--dsw-menu-backdrop-filter`, `--dsw-radius-*`, `--dsh-glass-drop`) instead of a hand-written border, background and shadow.
+- Keyboard: `:focus-visible` rings on menu rows, 打开 buttons, settings rows and model options; before this only two controls had any focus feedback.
+- Unload actually restores the host: the frame-track observer is disconnected, `--uidy-rb-track` and the three `<html>` variables are removed, hidden right panes are revealed, the docked view-options panel is released with `releaseViewOptions()`, and the sheet injected into the shell's shadow root is removed along with its marker.
+- `uninstall.ps1` also undoes the profile-wide hmr override now (`-KeepHmr` opts out) and prints the one-line localStorage cleanup.
+- Click swallowing only applies inside a decorated provider group, so a foreign `_heading` element no longer loses its click.
+- Smoke contract: 23 checks, including "selection uses a token that exists" and "unload restores everything the plugin took over".
+
 ## 0.4.11
 - Reverting my own overreach: the 对话 tab is back. The strip switches the VIEW inside the conversation panel, while the title bar 对话 button switches the PANEL - two different controls. Hiding the tab meant anyone who opened 轨迹 had no way back to the chat view.
 - No view tab is pruned or hidden any more; the strip is plain visible and scrollable. The smoke contract now fails if any rule targets a view tab again.
