@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.16
+- The bar is placed again when the window resizes. Centre and right mode measure the row and write `left` inline, but that effect only re-ran when the number of carried buttons changed, so resizing the window left the row where it was. It now also listens for `resize` (16 ms debounce) and re-places on every width change.
+- The model-picker takeover is gone, because another plugin now owns that popup. Removed with it: the four provider switches, the decoration pass (`applyModelMenus` / `syncModelOptions` / `providerKey` / `modelGroups`), the capture-phase `pointerdown` press interception and click swallowing, `MODEL_CSS`, the `.uidy-opts-*` rows drawn inside the picker, the `menuId === "model"` popup section, the settings-page section, and the three `modelMenu` / `modelHeading` / `modelRow` selector-registry entries. The picker is left exactly as the host renders it.
+- Smoke contract: 26 checks. "click swallowing is scoped to decorated providers" is replaced by "the model picker is left to its owner" (no decoration, no swallowed presses, no settings rows) and "the bar is placed again when the window resizes".
+
 ## 0.4.15
 - Each of the three seats (top bar, overlay, settings page) now renders inside its own error boundary. `apply` was guarded, but that only covered registration: a throw during render used to propagate into the host slot and could blank the title bar, which a user can only escape by resetting the profile. A failed seat now logs one line and renders nothing.
 - Rules that reach into other plugins' own classes (`.dsh-sam-*`, `.mneme-*`) are gated on `html[data-uidy-on]`, which is set when the plugin applies and removed when it unloads. They used to compete at `!important` weight for as long as the page lived, even after this plugin was gone.

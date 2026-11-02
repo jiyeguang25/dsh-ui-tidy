@@ -298,9 +298,19 @@ unmute();
 	);
 
 	check(
-		"click swallowing is scoped to decorated providers",
-		src.includes('target.closest("[data-uidy-group]") === null) return;'),
-		"a foreign _heading element keeps its click",
+		"the model picker is left to its owner",
+		!src.includes("applyModelMenus") &&
+			!src.includes("_modelOption") &&
+			!src.includes("data-uidy-opts") &&
+			!src.includes("menuId === \"model\""),
+		"no decoration, no swallowed presses, no settings rows for the picker",
+	);
+
+	check(
+		"the bar is placed again when the window resizes",
+		src.includes('window.addEventListener("resize", onPlaceResize)') &&
+			src.includes("}, [ui.align, fit, carried.length, pages.length]);"),
+		"centre and right follow the window width",
 	);
 
 	check(

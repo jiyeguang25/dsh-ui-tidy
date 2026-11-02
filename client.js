@@ -404,9 +404,6 @@ const SELECTOR_GROUPS = {
 	viewOptions: ['[class*="viewOptions"]'],
 	subagentTrigger: ['.dsh-sam-trigger'],
 	workflowTrigger: ['.mneme-pipe-trigger'],
-	modelMenu: ['[role="menu"][class*="_groups"]'],
-	modelHeading: ['[class*="_heading"]'],
-	modelRow: ['[class*="_modelOption"]'],
 };
 
 /** Which candidate last matched (or missed) for each hook. */
@@ -1003,407 +1000,8 @@ function copyDiagnostics() {
 			}
 		}
 
-		/* ---------------------------------------------------------------- *
-		 * preferences (localStorage; the 视图 menu toggles them)
-		 * ---------------------------------------------------------------- */
-
-		const PREFS_KEY = "dsh-ui-tidy.prefs.v2";
-
-		const MODEL_TOGGLES = [
-			{ key: "collapse", label: "model.collapse" },
-			{ key: "merge", label: "model.merge" },
-			{ key: "dedupe", label: "model.dedupe" },
-			{ key: "collapseAll", label: "model.collapseAll" }
-		];
-
-		/**
-		 * Read the persisted preferences, tolerating absent or damaged storage.
-		 * @returns the live preference object.
-		 */
-		function loadPrefs() {
-			const base = { collapse: true, merge: true, dedupe: true, collapseAll: true, collapsed: {}, expanded: {} };
-			const parsed = readField("prefs", {});
-			base.collapse = parsed.collapse !== false;
-			base.merge = parsed.merge !== false;
-			base.dedupe = parsed.dedupe !== false;
-			base.collapseAll = parsed.collapseAll !== false;
-			base.collapsed = parsed.collapsed !== null && typeof parsed.collapsed === "object" ? parsed.collapsed : {};
-			base.expanded = parsed.expanded !== null && typeof parsed.expanded === "object" ? parsed.expanded : {};
-			return base;
-		}
-
-		const prefs = loadPrefs();
-		const prefsStore = createStore({ revision: 0 });
-
-		/**
-		 * Persist the preferences and notify subscribers.
-		 * Decoration is not forced from here: a full menu scan on every switch write
-		 * was pure waste while the picker is closed, and the observer decorates the
-		 * list the moment it opens. Call sites that need an immediate repaint (the
-		 * rows inside the picker) call it themselves.
-		 * @returns {void}
-		 */
-		function commitPrefs() {
-			queueWriteState({ prefs });
-			prefsStore.bump();
-		}
-
-		/**
-		 * Re-render a component when a preference changes.
-		 * @returns the current revision.
-		 */
-		function usePrefs() {
-			const [revision, setRevision] = react.useState(prefsStore.get().revision);
-			react.useEffect(() => prefsStore.subscribe(() => setRevision(prefsStore.get().revision)), []);
-			return revision;
-		}
-
-		/* ---------------------------------------------------------------- *
-		 * model-list enhancer: collapse per provider + merge duplicate groups
-		 *
-		 * The host renders the provider groups; this only sets attributes on the
-		 * host's own nodes (never inserts or moves them) and lets CSS do the
-		 * hiding, so a host re-render simply re-decorates.
-		 * ---------------------------------------------------------------- */
-
 		/* The session browser's key in the saved bar order: not a panel, but a slot. */
 		const SESSION_SLOT_KEY = "__sessions__";
-		const MODEL_MENU_SELECTOR = '[role="menu"][class*="_groups"]';
-		const MODEL_GROUP_ATTR = "data-uidy-group";
-		const MODEL_HEADING_SELECTOR = '[class*="_heading"]';
-		const MODEL_ROW_SELECTOR = '[class*="_modelOption"]';
-
-		/**
-		 * Reduce a provider heading to its merge key ("DeepSeek 账号" → "deepseek").
-		 * @param title - heading text.
-		 * @returns the key.
-		 */
-		function providerKey(title) {
-			const compact = String(title).replace(/[\s·:：]+/g, "");
-			const stripped = compact.replace(/(账号|帐号|官方|账户|account|official)$/i, "");
-			return (stripped === "" ? compact : stripped).toLowerCase();
-		}
-
-		/**
-		 * List the direct group children of an open model menu.
-		 * @param menu - the menu element.
-		 * @returns the group elements.
-		 */
-		function modelGroups(menu) {
-			const byHeading = Array.prototype.slice.call(menu.children).filter((child) => child.querySelector(MODEL_HEADING_SELECTOR) !== null);
-			if (byHeading.length > 0) return byHeading;
-			/*
-			 * The shell's class names are hashed and drift between releases. When the heading
-			 * class no longer matches, fall back to the shape every provider group has: a block
-			 * of model options. Without this the toggles silently decorate nothing.
-			 */
-			return Array.prototype.slice.call(menu.children).filter((child) => child.querySelectorAll(MODEL_ROW_SELECTOR).length > 0 || child.querySelectorAll('[role="menuitemradio"]').length > 1);
-		}
-
-		/**
-		 * Decorate every open model list in place.
-		 * @returns the number of menus that were decorated.
-		 */
-function syncModelOptions(menu, firstGroup) {
-	const container = firstGroup.parentElement;
-	if (container === null) return;
-	let box = container.querySelector("[data-uidy-opts]");
-	if (box === null) {
-		box = document.createElement("div");
-		box.setAttribute("data-uidy-opts", "");
-		container.insertBefore(box, container.firstChild);
-	}
-	/*
-	 * Rebuild only when a setting actually changed. Rebuilding on every pass
-	 * mutates the list, which wakes the observer that scheduled this pass, and the
-	 * menu would repaint in a tight loop.
-	 */
-	const signature = MODEL_TOGGLES.map((toggle) => (prefs[toggle.key] === true ? "1" : "0")).join("");
-	if (box.getAttribute("data-uidy-sig") === signature && box.childElementCount > 0) return;
-	box.setAttribute("data-uidy-sig", signature);
-	box.textContent = "";
-	const title = document.createElement("div");
-	title.className = "uidy-opts-title";
-	title.textContent = tt("group.modelOptions");
-	box.appendChild(title);
-	for (const toggle of MODEL_TOGGLES) {
-		const on = prefs[toggle.key] === true;
-		const row = document.createElement("button");
-		row.type = "button";
-		/* Same language as the popup menus: the row itself is the state, no tick mark. */
-		row.className = on ? "uidy-opts-row uidy-opts-row-on" : "uidy-opts-row";
-		row.setAttribute("role", "menuitemcheckbox");
-		row.setAttribute("aria-checked", on ? "true" : "false");
-		const mark = document.createElement("span");
-		mark.className = "uidy-opts-check";
-		const text = document.createElement("span");
-		text.textContent = tt(toggle.label);
-		row.appendChild(mark);
-		row.appendChild(text);
-		row.addEventListener("click", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			prefs[toggle.key] = prefs[toggle.key] !== true;
-			commitPrefs();
-			/* Storing the flag is not enough: the list must visibly change now. */
-			syncModelOptions(menu, firstGroup);
-			for (const delay of [30, 120, 320]) setTimeout(applyModelMenus, delay);
-		});
-		box.appendChild(row);
-	}
-}
-
-		/**
-		 * Decorate every open model list.
-		 * @param onlyKey - when given, only writes to that provider's groups, which is
-		 *   what a single fold press needs; the rest of the list is already correct.
-		 * @returns how many lists were decorated.
-		 */
-		function applyModelMenus(onlyKey) {
-			let menus = [];
-			try {
-				menus = Array.prototype.slice.call(document.querySelectorAll(MODEL_MENU_SELECTOR));
-			} catch {
-				return 0;
-			}
-			if (menus.length === 0) {
-				/*
-				 * The class in the selector is hashed by the bundler and drifts between
-				 * releases. A menu offering several radio options is the model list
-				 * whatever it is called, so fall back to that shape instead of going
-				 * quietly inert.
-				 */
-				try {
-					menus = Array.prototype.slice
-						.call(document.querySelectorAll('[role="menu"]'))
-						.filter((menu) => !menu.classList.contains("uidy-menu") && menu.querySelectorAll('[role="menuitemradio"],' + MODEL_ROW_SELECTOR).length > 1);
-				} catch {
-					return 0;
-				}
-			}
-			let touched = 0;
-			for (const menu of menus) {
-				const groups = modelGroups(menu);
-				if (groups.length === 0) continue;
-				/*
-				 * Nothing to do when neither the switches nor the list changed. The
-				 * observer wakes on every body mutation - a streaming answer fires it
-				 * dozens of times a second - so a pass that would rewrite the same
-				 * forty attributes is pure cost.
-				 */
-				const foldSig = groups.length + ":" + MODEL_TOGGLES.map((toggle) => (prefs[toggle.key] === true ? "1" : "0")).join("");
-				if (onlyKey === undefined && menu.getAttribute("data-uidy-dsig") === foldSig) continue;
-				menu.setAttribute("data-uidy-dsig", foldSig);
-				touched += 1;
-				syncModelOptions(menu, groups[0]);
-				const ownerByKey = new Map();
-				const seenLabels = new Set();
-				/*
-				 * Read every group first: a merged provider has to follow the group
-				 * that owns it, so the fold state of the owner is known before the
-				 * rows of the merged group are shown or hidden.
-				 */
-				const records = groups.map((group) => {
-					const heading = group.querySelector(MODEL_HEADING_SELECTOR);
-					const title = String(heading.textContent || "").trim();
-					const key = providerKey(title);
-					const rows = Array.prototype.slice.call(group.querySelectorAll(MODEL_ROW_SELECTOR));
-					const labels = new Set();
-					for (const row of rows) {
-						const label = String(row.textContent || "").replace(/\s+/g, " ").trim();
-						if (label !== "") labels.add(label);
-					}
-					return { group: group, heading: heading, title: title, key: key, rows: rows, labels: labels, owner: null };
-				});
-				for (const record of records) {
-					const merged = prefs.merge && ownerByKey.has(record.key);
-					if (prefs.merge && !merged) ownerByKey.set(record.key, record);
-					else if (merged) record.owner = ownerByKey.get(record.key);
-					record.group.setAttribute(MODEL_GROUP_ATTR, record.key);
-					if (merged) record.group.setAttribute("data-uidy-merged", "true");
-					else record.group.removeAttribute("data-uidy-merged");
-				}
-				for (const record of records) {
-					/*
-					 * With `collapseAll` on, every provider starts folded so the list
-					 * reads as one line per provider; a group the user opened is
-					 * remembered in `expanded`, so the fold survives a re-open.
-					 * Otherwise the older per-key `collapsed` map decides.
-					 */
-					const source = record.owner === null ? record : record.owner;
-					if (onlyKey !== undefined && onlyKey !== null && source.key !== onlyKey) continue;
-					const collapsed = prefs.collapse
-						? prefs.collapseAll
-							? prefs.expanded[source.key] !== true
-							: prefs.collapsed[source.key] === true
-						: false;
-					record.collapsed = collapsed;
-					record.heading.setAttribute("data-uidy-arrow", collapsed ? "▸" : "▾");
-					record.heading.setAttribute("data-uidy-count", String(record.rows.length));
-					record.group.setAttribute("data-uidy-collapsed", collapsed ? "true" : "false");
-				}
-				for (const record of records) {
-					const source = record.owner === null ? record : record.owner;
-					if (onlyKey !== undefined && onlyKey !== null && source.key !== onlyKey) continue;
-					for (const row of record.rows) {
-						if (record.owner !== null) row.setAttribute("data-uidy-src", record.title);
-						else if (row.hasAttribute("data-uidy-src")) row.removeAttribute("data-uidy-src");
-						const label = String(row.textContent || "").replace(/\s+/g, " ").trim();
-						/*
-						 * A model the owning provider already lists would show up twice
-						 * once the two groups are merged, so the repeat goes.
-						 */
-						const repeat = record.owner !== null && label !== "" && source.labels.has(label);
-						const duplicate = prefs.dedupe && label !== "" && seenLabels.has(label);
-						if (label !== "" && !duplicate) seenLabels.add(label);
-						/*
-						 * Folding is expressed once, on the group, and the stylesheet hides
-						 * the rows of a folded group. Writing display-affecting attributes on
-						 * forty rows per press was the visible cost of clicking a provider.
-						 */
-						const hide = repeat || duplicate;
-						if (hide) row.setAttribute("data-uidy-hidden", "true");
-						else if (row.hasAttribute("data-uidy-hidden")) row.removeAttribute("data-uidy-hidden");
-					}
-				}
-			}
-			return touched;
-		}
-
-		/**
-		 * Watch for open model lists, keep them decorated, and toggle a group when
-		 * its heading is clicked.
-		 * @returns a disposer.
-		 */
-		function installModelMenuEnhancer() {
-			let frame = 0;
-			/*
-			 * Decoration has to land even when no frame is being drawn: a window
-			 * that is occluded or minimised stops requestAnimationFrame, and the
-			 * list would then stay undecorated until the user restores it. A
-			 * timer has no such condition.
-			 */
-			const applyNow = (onlyKey) => {
-				try {
-					applyModelMenus(onlyKey);
-				} catch (error) {
-					console.warn("[ui-tidy] model menu decoration failed:", error);
-				}
-			};
-			/*
-			 * Only decorate while a model list is actually open. The observer fires on
-			 * every body mutation - a streaming answer mutates continuously - and a full
-			 * document scan on each of those is what made the picker feel heavy. The
-			 * probe is cheap and its result is cached until that element leaves the DOM.
-			 */
-			let openMenu = null;
-			const hasModelMenu = () => {
-				if (openMenu !== null && openMenu.isConnected) return true;
-				openMenu = null;
-				try {
-					openMenu = document.querySelector(MODEL_MENU_SELECTOR);
-					if (openMenu === null) {
-						openMenu =
-							Array.prototype.slice
-								.call(document.querySelectorAll('[role="menu"]'))
-								.filter((menu) => !menu.classList.contains("uidy-menu") && menu.querySelectorAll('[role="menuitemradio"]').length > 1)[0] ?? null;
-					}
-				} catch {
-					openMenu = null;
-				}
-				return openMenu !== null;
-			};
-			const schedule = () => {
-				if (frame !== 0) return;
-				frame = setTimeout(() => {
-					frame = 0;
-					if (!hasModelMenu()) return;
-					try {
-						applyModelMenus();
-					} catch (error) {
-						console.warn("[ui-tidy] model menu decoration failed:", error);
-					}
-				}, 100);
-			};
-
-			const observer = new MutationObserver(schedule);
-			observer.observe(document.body, { childList: true, subtree: true });
-
-			/*
-			 * A press on a provider name has to be consumed before the host sees it:
-			 * its popover treats presses it did not expect as "outside" and closes the
-			 * whole model picker, which is the reported symptom. Swallowing
-			 * pointerdown and mousedown in the capture phase (so neither React's
-			 * delegated handlers nor any document listener run) and folding from there
-			 * keeps the list open.
-			 */
-			const toggleFromPress = (event) => {
-				const target = event.target;
-				if (target === null || typeof target.closest !== "function") return;
-				const heading = target.closest(MODEL_HEADING_SELECTOR);
-				if (heading === null) return;
-				const group = heading.closest("[" + MODEL_GROUP_ATTR + "]");
-				if (group === null) return;
-				event.preventDefault();
-				event.stopImmediatePropagation();
-				if (event.type !== "pointerdown") return;
-				const key = group.getAttribute(MODEL_GROUP_ATTR);
-				if (key === null || key === "") return;
-				/*
-				 * Toggle exactly this provider, and respect the switches the user set.
-				 * This used to force collapse + collapseAll back on for every press,
-				 * which silently undid "默认折叠全部供应商" whenever the list was
-				 * clicked - the setting looked broken because something else kept
-				 * rewriting it.
-				 */
-				if (!prefs.collapse) {
-					/* Nothing is folded by preference, so a press opens the list instead. */
-					prefs.collapsed[key] = false;
-					delete prefs.expanded[key];
-				} else if (prefs.collapseAll) {
-					if (prefs.expanded[key] === true) delete prefs.expanded[key];
-					else prefs.expanded[key] = true;
-				} else {
-					if (prefs.collapsed[key] === true) delete prefs.collapsed[key];
-					else prefs.collapsed[key] = true;
-				}
-				/*
-				 * No prefsStore.bump() here: nothing in our own UI shows a provider's
-				 * fold state, so notifying subscribers would only re-render an open
-				 * menu for nothing.
-				 */
-				queueWriteState({ prefs });
-				/* Only this provider changed; decorating the other fifteen lists would
-				 * be work the user cannot see and waits for. */
-				applyNow(key);
-				schedule();
-			};
-			const swallowClick = (event) => {
-				const target = event.target;
-				if (target === null || typeof target.closest !== "function") return;
-				if (target.closest(MODEL_HEADING_SELECTOR) === null) return;
-				/*
-				 * Only a heading that belongs to a decorated provider group may be
-				 * swallowed. Without this gate, any host or third-party element whose
-				 * class happens to contain "_heading" lost its click in the capture
-				 * phase - a button that looks alive and does nothing.
-				 */
-				if (target.closest("[data-uidy-group]") === null) return;
-				event.preventDefault();
-				event.stopImmediatePropagation();
-			};
-			document.addEventListener("pointerdown", toggleFromPress, true);
-			document.addEventListener("mousedown", toggleFromPress, true);
-			document.addEventListener("click", swallowClick, true);
-			schedule();
-			return () => {
-				observer.disconnect();
-				document.removeEventListener("pointerdown", toggleFromPress, true);
-				document.removeEventListener("mousedown", toggleFromPress, true);
-				document.removeEventListener("click", swallowClick, true);
-				if (frame !== 0) clearTimeout(frame);
-			};
-		}
 
 		/* ---------------------------------------------------------------- *
 		 * popup open / close
@@ -1895,31 +1493,6 @@ const RIGHTBAR_CSS = "";
 .uidy-sub{margin-left:auto;color:var(--dsw-alias-label-tertiary,inherit);font-size:11px}
 `;
 
-/*
- * Model-list decoration. The host renders both the provider groups and their
- * rows, so every rule below only reacts to the attributes `applyModelMenus`
- * sets; no host class is restyled and no node is inserted.
- */
-const MODEL_CSS = `
-[data-uidy-group] > [class*="_heading"]{cursor:pointer;user-select:none}
-[data-uidy-group] > [class*="_heading"]::before{content:attr(data-uidy-arrow);display:inline-block;width:10px;opacity:.7}
-[data-uidy-group] > [class*="_heading"]::after{content:attr(data-uidy-count);margin-left:6px;opacity:.55;font-weight:400}
-/*
- * A merged provider keeps its rows but loses its own heading, so the models
- * read as one list under the provider that owns them. Dissolving the group
- * box leaves the host's row nodes untouched.
- */
-[data-uidy-merged="true"]{display:contents !important}
-[data-uidy-merged="true"] > [class*="_heading"]{display:none}
-[data-uidy-hidden="true"]{display:none !important}
-/*
- * Folding is one attribute on the group, not forty attributes on the rows: the
- * browser hides the whole subtree in a single style pass, which is what makes a
- * press on a provider name feel instant instead of sticky.
- */
-[data-uidy-group][data-uidy-collapsed="true"] > [class*="_modelOption"]{display:none !important}
-[data-uidy-src]::after{content:"· " attr(data-uidy-src);margin-left:6px;font-size:11px;opacity:.6}
-`;
 
 		/* ---------------------------------------------------------------- *
 		 * shipped sidebar removal + seat preservation
@@ -2550,7 +2123,7 @@ const MENUS = [];
  * The provider-list settings used to hang off a 模型 entry in the shell menu
  * bar. That button sat among the shell's own 应用 / 编辑 and read as a shell
  * menu while only tuning the model picker, so its toggles moved into the
- * picker itself (syncModelOptions) and the bar keeps the shell's own entries.
+ * picker itself, and the bar keeps the shell's own entries.
  */
 
 		/*
@@ -2954,13 +2527,12 @@ function styleMenuBar(bar, shadow) {
 
 		/**
 		 * The action popup: New session, session search, the main panels, the
-		 * model-list switches, the right sidebar and the sidebar toggle.
+		 * right sidebar and the sidebar toggle.
 		 * @returns the popup element, or null while closed.
 		 */
 		function ActionMenu() {
 			const state = useStore();
 			const activePanelId = useActivePanelId();
-			usePrefs();
 			const ref = react.useRef(null);
 			const activeMenuId = state.menu;
 
@@ -3214,36 +2786,6 @@ react.useEffect(() => {
 				}
 				rows.push(h("div", { key: "custom-hint", className: "uidy-custom-hint" }, "高亮的会出现在顶栏右侧；未高亮的点「打开」直接使用。"));
 			}
-			if (menuId === "model") {
-				rows.push(h("div", { key: "label-model", className: "uidy-group" }, tt("group.modelList")));
-				for (const toggle of MODEL_TOGGLES) {
-				const on = prefs[toggle.key] === true;
-				rows.push(
-					h(
-						"button",
-						{
-							key: `toggle:${toggle.key}`,
-							type: "button",
-							role: "menuitemcheckbox",
-							"aria-checked": on,
-							className: on ? "uidy-item uidy-item-on" : "uidy-item",
-							onClick: () => {
-								prefs[toggle.key] = on !== true;
-								commitPrefs();
-								/* The list is already on screen, so repaint it now instead of
-								 * waiting for a mutation that this click never makes. */
-								applyModelMenus();
-								store.set({});
-								for (const delay of [40, 160]) setTimeout(applyModelMenus, delay);
-							}
-						},
-						h("span", { className: "uidy-item-ico" }),
-						h("span", null, tt(toggle.label))
-					)
-				);
-			}
-			}
-
 			/*
 			 * The account menu used to hang off the sidebar footer. Its popup is
 			 * positioned relative to the trigger element, so the shell's own trigger
@@ -3435,14 +2977,6 @@ const CUSTOM_ACTIONS = [
 
 const CUSTOM_CSS = [
 	"/* icon only buttons: the title bar shows glyphs, the name comes on hover */",
-	"/* provider-list settings, drawn inside the picker itself */",
-	".uidy-opts-title{padding:6px 10px 2px;font-size:12px;opacity:.6}",
-	".uidy-opts-row{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 10px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;font:inherit;font-size:13px;text-align:left;cursor:pointer}",
-	".uidy-opts-row:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,0.16))}",
-	".uidy-opts-row:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4d6bfe);outline-offset:1px}",
-	".uidy-opts-row-on{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.14))}",
-	".uidy-opts-row-on:hover{background:var(--dsw-alias-interactive-bg-active,rgba(127,127,127,.2))}",
-	".uidy-opts-check{display:inline-flex;width:14px;justify-content:center;opacity:.9}",
 	".uidy-item-tag{margin-left:auto;font-size:11px;opacity:.55}",
 	".uidy-page-icon{width:28px;padding:0;justify-content:center;gap:0}",
 	".uidy-page-ico{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
@@ -4137,20 +3671,39 @@ customGlyph(action)
 			 * width, which only exists after the row has rendered.
 			 */
 			useLayout(() => {
-				const bar = clusterRef.current;
-				if (bar === null) return;
-				const span = window.innerWidth - readCaptionReserve();
-				const width = bar.getBoundingClientRect().width;
-				if (ui.align === "center") {
-					bar.style.left = `${Math.max(readClusterLimit(), Math.round((span - width) / 2))}px`;
-					return;
-				}
-				if (ui.align === "right") {
-					bar.style.left = `${Math.max(readClusterLimit(), Math.round(span - width))}px`;
-					return;
-				}
-				bar.style.left = `${readLeadingEdge()}px`;
-			}, [ui.align, fit, carried.length]);
+				const place = () => {
+					const bar = clusterRef.current;
+					if (bar === null) return;
+					const span = window.innerWidth - readCaptionReserve();
+					const width = bar.getBoundingClientRect().width;
+					if (ui.align === "center") {
+						bar.style.left = `${Math.max(readClusterLimit(), Math.round((span - width) / 2))}px`;
+						return;
+					}
+					if (ui.align === "right") {
+						bar.style.left = `${Math.max(readClusterLimit(), Math.round(span - width))}px`;
+						return;
+					}
+					bar.style.left = `${readLeadingEdge()}px`;
+				};
+				place();
+				/*
+				 * Centre and right depend on the window width, so a resize has to place the
+				 * bar again. This effect used to run only when the number of carried buttons
+				 * changed, which left the row pinned where it was when the window grew or
+				 * shrank - the reported symptom.
+				 */
+				let placeTimer = 0;
+				const onPlaceResize = () => {
+					clearTimeout(placeTimer);
+					placeTimer = setTimeout(place, 16);
+				};
+				window.addEventListener("resize", onPlaceResize);
+				return () => {
+					clearTimeout(placeTimer);
+					window.removeEventListener("resize", onPlaceResize);
+				};
+			}, [ui.align, fit, carried.length, pages.length]);
 
 
 			const isActive = (page) =>
@@ -4241,7 +3794,7 @@ customGlyph(action)
 			return h(
 				react.Fragment,
 				null,
-				h("style", { key: "css" }, Z_VARS + SIDEBAR_CSS + RIGHTBAR_CSS + HEADER_CSS + DOCK_CSS + POPUP_CSS + MODEL_CSS + CUSTOM_CSS),
+				h("style", { key: "css" }, Z_VARS + SIDEBAR_CSS + RIGHTBAR_CSS + HEADER_CSS + DOCK_CSS + POPUP_CSS + CUSTOM_CSS),
 				h(ActionMenu, { key: "menu" }),
 				h(SessionsDock, { key: "dock" }),
 				h(PageCluster, { key: "pages" })
@@ -4415,7 +3968,6 @@ customGlyph(action)
 		function UiTidySettings() {
 			useStore();
 			const ui = loadUi();
-			const saved = loadPrefs();
 			const hidden = loadPinned();
 			const pages = readPages();
 			const rows = [];
@@ -4489,21 +4041,6 @@ customGlyph(action)
 					}
 				})
 			);
-			rows.push(h("div", { key: "h3", className: "uidy-set-head" }, "模型选择菜单"));
-			for (const toggle of MODEL_TOGGLES) {
-				rows.push(
-					h(SettingsCheck, {
-						key: "model:" + toggle.key,
-						label: tt(toggle.label),
-						checked: saved[toggle.key] !== false,
-						onChange: (value) => {
-							prefs[toggle.key] = value;
-							commitPrefs();
-							store.set({});
-						}
-					})
-				);
-			}
 			rows.push(h("div", { key: "h4", className: "uidy-set-head" }, "诊断"));
 			const health = readPluginHealth();
 			rows.push(
@@ -4730,7 +4267,6 @@ customGlyph(action)
 
 			ctx.effect(() => bootstrapMenuButton(), "ui-tidy: shell menu button");
 
-			ctx.effect(() => installModelMenuEnhancer(), "ui-tidy: model menu enhancer");
 
 
 			/*
