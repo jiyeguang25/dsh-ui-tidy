@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.20
+
+
+- **The dock no longer reuses a stale panel.** `placeViewOptions` remembered the panel it had docked and, when the shell closed it and drew a fresh one, kept styling the dead node instead of sweeping for the new one — so the panel stayed where the shell's own anchor put it (the hidden sidebar, i.e. the top-left of the window). The remembered node now has to still be in the document.
+- **Removed the "重新载入界面" button.** It called `window.location.reload()`, and on the `dsh-app://` protocol that re-boots the web app and fetches every plugin bundle with the boot-time `rev`. The bundle 404s, the plugin fails to import, and the whole entry is dead — the crash the user hit. HMR is already active (the `hmr` entry in `cordis.patch.yml` is `disabled: false` with `root` pointed at the plugins directory), so code changes land in about two seconds and a manual reload was both broken and unnecessary.
+- Smoke: 32 contracts (was 30).
+
 ## 0.4.19
 
 - **The display panel no longer waits for the sessions popup.** The dock ran only while

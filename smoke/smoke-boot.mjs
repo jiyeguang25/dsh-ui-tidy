@@ -370,6 +370,18 @@ unmute();
 			src.includes("window.innerWidth - width - 12"),
 		"the panel no longer waits for the popup, and with nothing beside it goes top-right",
 	);
+
+	check(
+		"a stale docked panel does not hide the fresh one",
+			src.includes("known.isConnected === true") && src.includes("findViewOptionsPanel()"),
+		"the shell re-draws this panel each time, so a node that left the document must not be reused",
+	);
+
+	check(
+		"the crashing reload button is gone",
+			!src.includes("window.location.reload") && !src.includes("item.reloadUi"),
+		"a full page reload on dsh-app:// re-boots the bundle with a stale rev and kills the plugin",
+	);
 }
 
 /* ---------------- report ---------------- */

@@ -74,8 +74,6 @@ window.__ModuleLoader__.load({
 				"view.hideArchived": "隐藏已归档",
 				"view.showPinnedFirst": "置顶会话排在前面",
 				"view.compactRows": "紧凑行高",
-				"group.maintenance": "维护",
-				"item.reloadUi": "重新载入界面",
 				"item.hideSidebar": "隐藏侧栏（本插件已接管）",
 				"item.morePanels": "更多面板",
 				"cluster.pages": "功能页面",
@@ -122,8 +120,6 @@ window.__ModuleLoader__.load({
 				"view.hideArchived": "Hide archived",
 				"view.showPinnedFirst": "Pinned first",
 				"view.compactRows": "Compact rows",
-				"group.maintenance": "Maintenance",
-				"item.reloadUi": "Reload interface",
 				"item.hideSidebar": "Hide sidebar (handled by this plugin)",
 				"item.morePanels": "More panels",
 				"cluster.pages": "Pages",
@@ -1751,7 +1747,7 @@ const RIGHTBAR_CSS = "";
 		function placeViewOptions(beside) {
 /* already docked: do not sweep the document for it again */
 			const known = document.querySelector("[data-uidy-viewoptions]");
-			const panel = known !== null ? known : findViewOptionsPanel();
+			const panel = known !== null && known.isConnected === true ? known : findViewOptionsPanel();
 			if (panel === null) {
 				releaseViewOptions();
 				return;
@@ -2762,25 +2758,7 @@ react.useEffect(() => {
 						)
 					);
 				}
-				rows.push(h("div", { key: "d-acct-2", className: "uidy-divider" }));
-				rows.push(h("div", { key: "label-maint", className: "uidy-group" }, tt("group.maintenance")));
-				rows.push(
-					h(
-						"button",
-						{
-							key: "reload",
-							type: "button",
-							role: "menuitem",
-							className: "uidy-item",
-							onClick: () => {
-								closeMenu();
-								window.location.reload();
-							},
-						},
-						h("span", { className: "uidy-item-ico" }, h(Icon, { name: "refresh" })),
-						h("span", null, tt("item.reloadUi"))
-					)
-				);
+				
 			}
 
 			/*
