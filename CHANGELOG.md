@@ -1,4 +1,9 @@
 # Changelog
+## 0.4.17
+- The session popup no longer carries a search box of its own. It queried the host for message history and showed hits that could not be opened from inside the popup, which read as a dead entry point next to the tree's real search. The tree keeps the host's own search box; the plugin's second one is gone from the popup, the left dock, the CSS and the copy.
+- New session is a small button dressed onto the relocated tree's own header row, beside the host's search box, instead of a full-width row above it. Session display settings is the same kind of button next to it. Both are re-inserted whenever the host re-renders its list, and the tree's own 视图选项 trigger is intercepted so it opens the plugin's panel rather than the shell's.
+- Session display settings is owned by the plugin. The shell's own panel is portal-anchored to a trigger parked in the hidden sidebar, so opening it put the panel back at the left edge of the window - the "original page" that kept appearing, including when only the archive filter was picked. The plugin opens the shell's menu briefly, reads the chosen item, clicks it there and lets the shell close its own menu, then shows its own panel; while it is open the shell's panel is hidden by attribute, so nothing of the shell's is left on screen while the filter still applies to the shell's list.
+- Smoke contract: 29 checks. Three new contracts cover the removed search box, the dressed tree buttons and the hidden shell panel.
 
 ## 0.4.16
 - The bar is placed again when the window resizes. Centre and right mode measure the row and write `left` inline, but that effect only re-ran when the number of carried buttons changed, so resizing the window left the row where it was. It now also listens for `resize` (16 ms debounce) and re-places on every width change.

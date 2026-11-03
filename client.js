@@ -51,9 +51,6 @@ window.__ModuleLoader__.load({
 				"panel.skillExplorer": "技能中心",
 				"panel.bill": "账单",
 				"item.searchSessions": "搜索会话",
-				"item.searchPlaceholder": "搜索历史消息（至少 2 个字）",
-				"item.searchEmpty": "没有匹配的会话",
-				"item.searchUnavailable": "搜索服务不可用",
 				"item.rightbarOpen": "打开右侧栏",
 				"item.rightbarClose": "关闭右侧栏",
 				"item.pluginSettings": "插件 / 扩展设置",
@@ -102,9 +99,6 @@ window.__ModuleLoader__.load({
 				"panel.skillExplorer": "Skill center",
 				"panel.bill": "Usage",
 				"item.searchSessions": "Search sessions",
-				"item.searchPlaceholder": "Search message history (2+ characters)",
-				"item.searchEmpty": "No matching session",
-				"item.searchUnavailable": "Search service unavailable",
 				"item.rightbarOpen": "Open right sidebar",
 				"item.rightbarClose": "Close right sidebar",
 				"item.pluginSettings": "Plugin / extension settings",
@@ -1064,7 +1058,9 @@ function copyDiagnostics() {
 			/* A branching node graph: the workflow runner. */
 			flow: ["M4 4.4h2.4v2.4H4z", "M9.6 9.2H12v2.4H9.6z", "M4 9.2h2.4v2.4H4z", "M6.4 6.8v2.4", "M5.2 7.6h5.6v1.6", "M12 11.6v1.2a1.2 1.2 0 0 1-1.2 1.2H6.4a1.2 1.2 0 0 1-1.2-1.2v-1.2"],
 			/* A pair of figures: the sub-agent roster. */
-			agents: ["M6.4 7.6a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6", "M2.4 13.2c0-2 1.8-3.1 4-3.1s4 1.1 4 3.1", "M10.6 5.2a1.9 1.9 0 1 1 0 3.8", "M11.2 10.3c1.5.2 2.6 1.2 2.6 2.9"]
+			agents: ["M6.4 7.6a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6", "M2.4 13.2c0-2 1.8-3.1 4-3.1s4 1.1 4 3.1", "M10.6 5.2a1.9 1.9 0 1 1 0 3.8", "M11.2 10.3c1.5.2 2.6 1.2 2.6 2.9"],
+			/* Three ruled lines with knobs: the session display settings. */
+			sliders: ["M2.6 4.6h10.8", "M2.6 8h10.8", "M2.6 11.4h10.8", "M9.4 2.6v3.4", "M9.4 8.6v3.4"],
 		};
 
 		/**
@@ -1233,7 +1229,6 @@ const DOCK_CSS = `
 .uidy-dock-act{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;
   border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,inherit);cursor:pointer;font:inherit;line-height:1}
 .uidy-dock-act:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.18));color:var(--dsw-alias-label-primary,inherit)}
-.uidy-dock .uidy-searchbox{flex:0 0 auto}
 .uidy-dock .uidy-sessions{flex:1 1 auto;min-height:120px;max-height:none;overflow-y:auto}
 `;
 
@@ -1471,18 +1466,15 @@ const RIGHTBAR_CSS = "";
 .uidy-pages-pop .uidy-page{display:flex;width:100%;height:30px;padding:0 8px;border-radius:6px;box-sizing:border-box}
 .uidy-pages-pop .uidy-page[data-active="true"]{background:transparent}
 .uidy-pages-pop .uidy-page[data-active="true"] > svg{color:var(--dsw-alias-brand-primary,currentColor)}
-.uidy-searchbox{display:flex;flex-direction:column;gap:1px;padding:2px 0 3px}
-.uidy-search{width:100%;height:28px;padding:0 8px;border-radius:6px;box-sizing:border-box;
-  border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));
-  background:var(--dsw-alias-bg-layer-2,transparent);color:var(--dsw-alias-label-primary,inherit);
-  font:inherit;font-size:12px}
-.uidy-search:focus{outline:2px solid var(--dsw-alias-brand-primary,#4d6bfe);outline-offset:0}
 .uidy-note{padding:3px 8px;color:var(--dsw-alias-label-tertiary,inherit);font-size:11px}
-.uidy-hit{display:block;width:100%;height:26px;padding:0 8px;border:0;border-radius:6px;overflow:hidden;
-  background:transparent;color:var(--dsw-alias-label-secondary,inherit);font:inherit;font-size:12px;
-  text-align:left;white-space:nowrap;text-overflow:ellipsis;cursor:pointer}
-.uidy-hit:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14));
+.uidy-tree-tools{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin-left:6px}
+.uidy-tree-new,.uidy-tree-opts{width:26px;height:26px;border:0;border-radius:6px;background:transparent;
+  display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.uidy-tree-new:hover,.uidy-tree-opts:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14));
   color:var(--dsw-alias-label-primary,inherit)}
+.uidy-tree-new>svg,.uidy-tree-opts>svg{width:14px;height:14px}
+.uidy-viewopts{width:252px;padding:4px;z-index:var(--uidy-z-flyout,1215)}
+html[data-uidy-vo-open] [class*="viewOptions"],html[data-uidy-vo-open] [class*="viewOptionsMenu"]{display:none !important}
 /* the session list relocated from the sidebar: it scrolls, the row styling comes
    from the host, and only the box that frames it is ours */
 .uidy-sessions{display:flex;flex-direction:column;min-width:0;max-height:min(56vh,460px);overflow-y:auto;padding:1px 0 2px}
@@ -2365,96 +2357,247 @@ function styleMenuBar(bar, shadow) {
 		/* ---------------------------------------------------------------- *
 		 * the popup, shared by the shell menu button and the fallback strip
 		 * ---------------------------------------------------------------- */
-
-		/**
-		 * Live session search: debounced host query, results open the session.
-		 * @param props - `{ onPick }`.
-		 * @returns the search block.
+		/* Session display settings, in the shell's own wording so the rows can be
+		 * matched against the shell's menu items. */
+		const VIEW_OPTION_LABELS = {
+			"view.groupBy": ["分组方式", "Group by"],
+			"view.groupWorkspace": ["按工作区", "Workspace"],
+			"view.groupTree": ["按工作区树", "Workspace tree"],
+			"view.groupFlat": ["单列表", "In one list"],
+			"view.orderBy": ["排序方式", "Order by"],
+			"view.orderManual": ["手动排序", "Manual"],
+			"view.orderUpdated": ["最近更新", "Last updated"],
+			"view.filterBy": ["筛选会话", "Filter sessions"],
+			"view.hideArchived": ["隐藏已归档", "Hide archived"],
+			"view.showArchived": ["全部对话（显示已归档）", "All conversations (show archived)"],
+			"view.onlyArchived": ["仅显示已归档", "Archived only"],
+			"view.optionsTitle": ["会话显示设置", "Session display settings"]
+		};
+		function voLabel(key) {
+			const row = VIEW_OPTION_LABELS[key];
+			if (row === undefined) return key;
+			const locale = String(document.documentElement.getAttribute("lang") || navigator.language || "").toLowerCase();
+			return row[locale.indexOf("en") >= 0 ? 1 : 0];
+		}
+		/*
+		 * Session display settings.
+		 *
+		 * The shell's own 视图选项 panel is portal-anchored to a trigger that lives in
+		 * the parked sidebar, so opening it puts the panel back against the left edge
+		 * of the window — the "original page" that kept appearing. This plugin owns
+		 * the panel instead: it opens the shell's menu briefly, reads the chosen item,
+		 * clicks it there and lets the shell close its own menu, so nothing of the
+		 * shell's is left on screen while the filter still applies to its list.
 		 */
-		function SessionSearch(props) {
-			const [query, setQuery] = react.useState("");
-			const [outcome, setOutcome] = react.useState({ status: "idle", items: [] });
+		const VIEW_OPTION_GROUPS = [
+			{ group: "view.groupBy", options: ["view.groupWorkspace", "view.groupTree", "view.groupFlat"] },
+			{ group: "view.orderBy", options: ["view.orderManual", "view.orderUpdated"] },
+			{ group: "view.filterBy", options: ["view.hideArchived", "view.showArchived", "view.onlyArchived"] }
+		];
+		let viewOptionsPanel = null;
+		let viewOptionsOutside = null;
 
-			react.useEffect(() => {
-				const text = query.trim();
-				if (text.length < 2) {
-					setOutcome({ status: "idle", items: [] });
-					return undefined;
-				}
-				const sessions = getService("sessions");
-				if (sessions === null || typeof sessions.search !== "function") {
-					setOutcome({ status: "unavailable", items: [] });
-					return undefined;
-				}
-				const controller = typeof AbortController === "function" ? new AbortController() : null;
-				let cancelled = false;
-				const timer = setTimeout(() => {
-					Promise.resolve(sessions.search(text, controller === null ? undefined : controller.signal))
-						.then((result) => {
-							if (cancelled) return;
-							const ok = result !== null && typeof result === "object" && result.ok === true;
-							const payload = ok ? result.value : null;
-							const items = payload !== null && typeof payload === "object" && Array.isArray(payload.items) ? payload.items : [];
-							setOutcome({ status: ok ? "done" : "error", items: items.slice(0, 8) });
-						})
-						.catch(() => {
-							if (!cancelled) setOutcome({ status: "error", items: [] });
-						});
-				}, 220);
-				return () => {
-					cancelled = true;
-					clearTimeout(timer);
-					if (controller !== null) {
-						try {
-							controller.abort();
-						} catch {
-							/* already settled */
-						}
-					}
-				};
-			}, [query]);
-
-			const body = [
-				h("input", {
-					key: "input",
-					className: "uidy-search",
-					type: "search",
-					value: query,
-					placeholder: tt("item.searchPlaceholder"),
-					onChange: (event) => setQuery(event.target.value)
-				})
-			];
-			if (outcome.status === "unavailable") body.push(h("div", { key: "na", className: "uidy-note" }, tt("item.searchUnavailable")));
-			if (outcome.status === "done" && outcome.items.length === 0) {
-				body.push(h("div", { key: "empty", className: "uidy-note" }, tt("item.searchEmpty")));
-			}
-			for (const item of outcome.items) {
-				const snippet = String(item.snippet || "").replace(/\s+/g, " ").trim();
-				body.push(
-					h(
-						"button",
-						{
-							key: `hit:${String(item.sessionId)}`,
-							type: "button",
-							role: "menuitem",
-							className: "uidy-hit",
-							title: snippet,
-							onClick: () => props.onPick(String(item.sessionId))
-						},
-						snippet.slice(0, 58)
-					)
-				);
-			}
-			return h("div", { className: "uidy-searchbox" }, body);
+		function findHostViewOptionsTrigger() {
+			return document.querySelector('[aria-label="视图选项"],[class*="GAkraW"] button[aria-label*="视图"]');
 		}
 
+		function findHostViewOptionsMenu() {
+			const byClass = document.querySelector('[class*="viewOptionsMenu"],[role="menu"][class*="viewOptions"]');
+			if (byClass !== null && byClass.querySelector('[role="menuitemradio"]') !== null) return byClass;
+			const wanted = VIEW_OPTION_GROUPS.flatMap((entry) => entry.options).map((key) => voLabel(key));
+			const candidates = [...document.querySelectorAll('[role="menu"]')].filter((node) => {
+				if (node.closest(".uidy-menu, .uidy-pages, .uidy-bar, [data-uidy-viewopts]") !== null) return false;
+				const text = node.textContent || "";
+				return wanted.some((label) => text.indexOf(label) >= 0);
+			});
+			let best = null;
+			let bestArea = Infinity;
+			for (const node of candidates) {
+				const rect = node.getBoundingClientRect();
+				if (rect.width < 120 || rect.width > 520) continue;
+				if (rect.height < 60 || rect.height > 760) continue;
+				const area = rect.width * rect.height;
+				if (area < bestArea) { bestArea = area; best = node; }
+			}
+			return best;
+		}
+
+		function hostMenuItem(menu, label) {
+			const items = [...menu.querySelectorAll('[role="menuitemradio"],[role="menuitem"]')];
+			for (const item of items) if ((item.textContent || "").trim() === label) return item;
+			const leaves = [...menu.querySelectorAll("*")].filter((node) => node.children.length === 0 && (node.textContent || "").trim() === label);
+			if (leaves.length === 0) return null;
+			let best = leaves[0].parentElement;
+			for (const leaf of leaves.slice(1)) {
+				while (best !== null && !best.contains(leaf)) best = best.parentElement;
+			}
+			return best;
+		}
+
+		function readHostViewOptions(menu) {
+			const state = {};
+			for (const entry of VIEW_OPTION_GROUPS) {
+				for (const key of entry.options) {
+					const item = hostMenuItem(menu, voLabel(key));
+					if (item !== null) state[key] = item.getAttribute("aria-checked") === "true";
+				}
+			}
+			return state;
+		}
+
+		function pickHostViewOption(key, done) {
+			const trigger = findHostViewOptionsTrigger();
+			if (trigger === null) { if (done !== undefined) done(false); return; }
+			pressElement(trigger);
+			setTimeout(() => {
+				const menu = findHostViewOptionsMenu();
+				if (menu === null) { if (done !== undefined) done(false); return; }
+				const item = hostMenuItem(menu, voLabel(key));
+				if (item === null) { if (done !== undefined) done(false); return; }
+				item.click();
+				setTimeout(() => { if (done !== undefined) done(true); }, 240);
+			}, 150);
+		}
+
+		function closeViewOptionsPanel() {
+			document.documentElement.removeAttribute("data-uidy-vo-open");
+			if (viewOptionsOutside !== null) {
+				document.removeEventListener("pointerdown", viewOptionsOutside, true);
+				viewOptionsOutside = null;
+			}
+			if (viewOptionsPanel !== null) {
+				viewOptionsPanel.remove();
+				viewOptionsPanel = null;
+			}
+		}
+
+		function renderViewOptionsPanel(anchor, state) {
+			closeViewOptionsPanel();
+			const panel = document.createElement("div");
+			panel.className = "uidy-menu uidy-menu-fixed uidy-viewopts";
+			panel.setAttribute("role", "menu");
+			panel.setAttribute("data-uidy-viewopts", "true");
+			const box = anchor.getBoundingClientRect();
+			panel.style.left = Math.round(Math.max(12, Math.min(box.left, window.innerWidth - 268))) + "px";
+			panel.style.top = Math.round(box.bottom + 6) + "px";
+			for (const entry of VIEW_OPTION_GROUPS) {
+				const head = document.createElement("div");
+				head.className = "uidy-group";
+				head.textContent = voLabel(entry.group);
+				panel.appendChild(head);
+				for (const key of entry.options) {
+					const row = document.createElement("button");
+					row.type = "button";
+					row.className = "uidy-item" + (state[key] === true ? " uidy-item-on" : "");
+					row.setAttribute("role", "menuitemradio");
+					row.setAttribute("aria-checked", state[key] === true ? "true" : "false");
+					row.textContent = voLabel(key);
+					row.addEventListener("click", (event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						pickHostViewOption(key, (ok) => {
+							if (ok === true) {
+								row.className = "uidy-item uidy-item-on";
+								row.setAttribute("aria-checked", "true");
+							} else {
+								closeViewOptionsPanel();
+							}
+						});
+					});
+					panel.appendChild(row);
+				}
+			}
+			document.body.appendChild(panel);
+			viewOptionsPanel = panel;
+			viewOptionsOutside = (event) => {
+				if (panel.contains(event.target)) return;
+				closeViewOptionsPanel();
+			};
+			document.addEventListener("pointerdown", viewOptionsOutside, true);
+		}
+
+		function toggleViewOptionsPanel(anchor) {
+			if (viewOptionsPanel !== null) { closeViewOptionsPanel(); return; }
+			document.documentElement.setAttribute("data-uidy-vo-open", "");
+			const trigger = findHostViewOptionsTrigger();
+			if (trigger !== null) pressElement(trigger);
+			setTimeout(() => {
+				const menu = findHostViewOptionsMenu();
+				const state = menu === null ? {} : readHostViewOptions(menu);
+				/* hand the shell's menu back: ours replaces it on screen */
+				if (trigger !== null) pressElement(trigger);
+				renderViewOptionsPanel(anchor, state);
+			}, 170);
+		}
+
+		/**
+		 * Put the two small buttons next to the host's own search box.
+		 * @param host - the panel the tree was moved into.
+		 * @returns {void}
+		 */
+		function dressTree(host) {
+			const tree = host.querySelector('[class*="workspacesRoot"],[class*="treeRoot"],[role="tree"]');
+			const shellRoot = host.querySelector('.GAkraW_root,[class*="workspacesRoot"]') || host;
+			const root = shellRoot;
+			if (root.querySelector("[data-uidy-tree-new]") !== null) return;
+			const slot = root.querySelector('.GAkraW_sectionHeader,[class*="sectionHeader"]') ||
+				root.querySelector('.GAkraW_searchSlot,[class*="searchSlot"]');
+			const row = slot === null ? root : slot;
+			const tools = document.createElement("div");
+			tools.className = "uidy-tree-tools";
+			tools.setAttribute("data-uidy-tree-new", "");
+			const fresh = document.createElement("button");
+			fresh.type = "button";
+			fresh.className = "uidy-tree-new";
+			fresh.title = tt("item.newSession");
+			fresh.setAttribute("aria-label", tt("item.newSession"));
+			fresh.innerHTML = iconMarkup("plus");
+			fresh.addEventListener("click", (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				closeMenu();
+				startSession();
+			});
+			tools.appendChild(fresh);
+			const opts = document.createElement("button");
+			opts.type = "button";
+			opts.className = "uidy-tree-opts";
+			opts.title = voLabel("view.optionsTitle");
+			opts.setAttribute("aria-label", voLabel("view.optionsTitle"));
+			opts.innerHTML = iconMarkup("sliders");
+			opts.addEventListener("click", (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				toggleViewOptionsPanel(opts);
+			});
+			tools.appendChild(opts);
+			row.appendChild(tools);
+			/*
+			 * The tree prints its own 视图选项 button, which opens the shell's panel at
+			 * the parked sidebar. Ours is the same control, kept inside the popup.
+			 */
+			if (root.getAttribute("data-uidy-viewopts-hook") !== "true") {
+				/* the tree body does not contain the shell's own trigger */
+				root.setAttribute("data-uidy-viewopts-hook", "true");
+				root.addEventListener("click", (event) => {
+					const target = event.target;
+					if (target instanceof Element === false) return;
+					const trigger = target.closest('[aria-label="视图选项"]');
+					if (trigger === null) return;
+					event.preventDefault();
+					event.stopPropagation();
+					toggleViewOptionsPanel(trigger);
+				}, true);
+			}
+		}
 		/**
 		 * The relocated session tree, rendered inside a menu.
 		 *
 		 * The tree is the host's own node, moved here by `relocateSessions()`; this
-		 * component only holds the box it scrolls in. Rendering it (rather than a
-		 * rebuilt list) keeps every host affordance — drag to reorder, per-row
-		 * archive / pin, the workspace headings — exactly as shipped.
+		 * component only holds the box it scrolls in and dresses the tree with the
+		 * two small buttons the sidebar used to carry: new session beside the host's
+		 * own search box, session display settings beside it. The buttons are put
+		 * back whenever the host re-renders its list.
 		 * @returns the container element.
 		 */
 		function SessionPanel() {
@@ -2463,7 +2606,17 @@ function styleMenuBar(bar, shadow) {
 				const host = ref.current;
 				if (host === null) return undefined;
 				const moved = relocateSessions(host);
+				dressTree(host);
+				let timer = 0;
+				const observer = new MutationObserver(() => {
+					if (host.querySelector("[data-uidy-tree-new]") !== null) return;
+					clearTimeout(timer);
+					timer = setTimeout(() => dressTree(host), 140);
+				});
+				observer.observe(host, { subtree: true, childList: true });
 				return () => {
+					observer.disconnect();
+					clearTimeout(timer);
 					if (moved !== null && moved.parentElement === host) restoreSessions(moved);
 				};
 			}, []);
@@ -2515,12 +2668,6 @@ function styleMenuBar(bar, shadow) {
 						h("span", { "aria-hidden": "true" }, "×")
 					)
 				),
-				h(SessionSearch, {
-					onPick: (sessionId) => {
-						close();
-						openSessionById(sessionId);
-					}
-				}),
 				h(SessionPanel)
 			);
 		}
@@ -2666,40 +2813,18 @@ react.useEffect(() => {
 			/*
 			 * The session browser. The tree is the host's own list, moved into the
 			 * popup, so selecting, dragging and the per-row actions behave exactly as
-			 * they did in the sidebar this plugin replaced. The search box above it is a
-			 * live host query. Adding a workspace is deliberately absent here: the tree
+			 * they did in the sidebar this plugin replaced. The tree carries the host's own
+			 * search box, with the new-session and display-settings buttons dressed onto it.
+			 * Adding a workspace is deliberately absent here: the tree
 			 * renders its own button, and two of them would be one too many.
 			 */
 			if (menuId === "sessions") {
-				rows.push(
-					h(
-						"button",
-						{
-							key: "new",
-							type: "button",
-							role: "menuitem",
-							className: "uidy-item",
-							onClick: () => {
-								closeMenu();
-								startSession();
-							}
-						},
-						h("span", { className: "uidy-item-ico" }, h(Icon, { name: "plus" })),
-						h("span", null, tt("item.newSession"))
-					)
-				);
 				rows.push(h("div", { key: "d0", className: "uidy-divider" }));
-				rows.push(
-					h(SessionSearch, {
-						key: "search",
-						onPick: (sessionId) => {
-							closeMenu();
-							openSessionById(sessionId);
-						}
-					})
-				);
-				rows.push(h("div", { key: "d1", className: "uidy-divider" }));
-				/* The session tree prints its own 会话 heading; a second one read as two stacked titles. */
+				/*
+				 * The tree prints its own 会话 heading and carries the host's own
+				 * search box, with the new-session and display-settings buttons
+				 * dressed onto it; a second search box of our own was a dead entry.
+				 */
 				rows.push(h(SessionPanel, { key: "sessions" }));
 			}
 			if (menuId === "custom") {

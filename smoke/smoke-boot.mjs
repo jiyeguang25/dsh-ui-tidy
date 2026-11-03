@@ -330,6 +330,33 @@ unmute();
 			src.includes('removeAttribute("data-uidy-on")'),
 		"courtesy rules disappear together with the plugin",
 	);
+
+	check(
+		"the session popup carries no search box of its own",
+		!src.includes("SessionSearch") &&
+			!src.includes("uidy-search") &&
+			!src.includes("item.searchPlaceholder") &&
+			!src.includes("item.searchEmpty") &&
+			!src.includes("item.searchUnavailable"),
+		"the dead search entry point is gone from code, CSS and copy",
+	);
+
+	check(
+		"the tree is dressed with its two small buttons",
+		src.includes("function dressTree(host)") &&
+			src.includes('className = "uidy-tree-new"') &&
+			src.includes('className = "uidy-tree-opts"') &&
+			src.includes(".GAkraW_searchSlot,[class*=\"searchSlot\"]"),
+		"new session and display settings sit beside the host's own search box",
+	);
+
+	check(
+		"the shell's own display panel stays hidden while ours is open",
+		src.includes('setAttribute("data-uidy-vo-open"') &&
+			src.includes('removeAttribute("data-uidy-vo-open")') &&
+			src.includes('html[data-uidy-vo-open] [class*="viewOptions"]'),
+		"the left-edge panel cannot flash behind ours",
+	);
 }
 
 /* ---------------- report ---------------- */
