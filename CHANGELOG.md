@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.19
+
+- **The display panel no longer waits for the sessions popup.** The dock ran only while
+  the popup was open, so pressing the shell's own 视图选项 button on its own left the panel
+  sitting on its anchor inside the parked sidebar - the box over the top-left corner. The
+  observer is always on, and with nothing to sit beside the panel goes top-right instead of
+  back to the window edge.
+- Smoke grows one contract: the panel is docked even when the popup is closed. 30 checks.
 ## 0.4.18
 
 - **The session popup no longer adds its own display-settings control.** The shell already

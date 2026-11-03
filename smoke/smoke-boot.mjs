@@ -360,6 +360,16 @@ unmute();
 			src.includes("placeViewOptions(lastBeside)"),
 		"the shell keeps its trigger and its panel; the plugin only docks the panel beside the popup",
 	);
+
+
+
+	check(
+		"the display panel is docked even when the popup is closed",
+			!src.includes('if (state.menu !== "sessions") return undefined;') &&
+			src.includes("lastBeside = popup === null ? null : popup.getBoundingClientRect();") &&
+			src.includes("window.innerWidth - width - 12"),
+		"the panel no longer waits for the popup, and with nothing beside it goes top-right",
+	);
 }
 
 /* ---------------- report ---------------- */

@@ -1772,9 +1772,9 @@ const RIGHTBAR_CSS = "";
 			} else if (besideRect !== null && besideRect.left - gap - width >= 12) {
 				panel.style.setProperty("left", Math.round(besideRect.left - gap - width) + "px", "important");
 			} else {
-				panel.style.setProperty("left", Math.round(Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))) + "px", "important");
+				panel.style.setProperty("left", Math.round(window.innerWidth - width - 12) + "px", "important");
 			}
-			const top = besideRect === null ? rect.top : besideRect.top;
+			const top = besideRect === null ? 44 : besideRect.top;
 			panel.style.setProperty("top", Math.round(Math.max(44, Math.min(top, window.innerHeight - 160))) + "px", "important");
 			/*
 			 * A stack above the popup is enough; the panel lives in the same overlay
@@ -2537,7 +2537,6 @@ function styleMenuBar(bar, shadow) {
 			}, [state.menu]);
 
 react.useEffect(() => {
-				if (state.menu !== "sessions") return undefined;
 				let lastBeside = null;
 				/*
 				 * Read the popup live instead of trusting an earlier click: the shell opens this
@@ -2553,8 +2552,7 @@ react.useEffect(() => {
 				};
 				const dockNow = () => {
 					const popup = document.querySelector(".uidy-menu-sessions");
-					if (popup === null) return;
-					lastBeside = popup.getBoundingClientRect();
+					lastBeside = popup === null ? null : popup.getBoundingClientRect();
 					placeViewOptions(lastBeside);
 					placeHostFlyout(lastBeside);
 				};
@@ -2602,7 +2600,7 @@ react.useEffect(() => {
 					 * gone from the document.
 					 */
 				};
-			}, [state.menu]);
+}, []);
 
 			/*
 			 * The popup already carries the shell's own "view options" button, so this
