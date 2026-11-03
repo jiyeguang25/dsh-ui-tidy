@@ -11,11 +11,13 @@
  * bytes and nothing has to be fetched.
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 
 const REPO = "jiyeguang25/dsh-ui-tidy";
 const cwd = process.cwd();
 const git = (...args) => execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 64 << 20 }).trim();
+
+/* Raw bytes of a blob as git stores them (normalised), not as the worktree has them. */
+const gitBlob = (sha) => execFileSync("git", ["cat-file", "blob", sha], { cwd, encoding: "buffer", maxBuffer: 64 << 20 });
 const token = execFileSync("gh", ["auth", "token"], { encoding: "utf8" }).trim();
 
 const api = async (path, init = {}) => {
@@ -51,7 +53,7 @@ const tree = [];
 const changed = [];
 for (const [path, info] of localBlobs) {
 	if (remoteBlobs.get(path) === info.sha) continue;
-	const content = readFileSync(cwd + "/" + path);
+	const content = gitBlob(info.sha);
 	const blob = await api(`/repos/${REPO}/git/blobs`, {
 		method: "POST",
 		body: JSON.stringify({ content: content.toString("base64"), encoding: "base64" }),
