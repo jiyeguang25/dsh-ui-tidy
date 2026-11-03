@@ -342,20 +342,23 @@ unmute();
 	);
 
 	check(
-		"the tree is dressed with its two small buttons",
+		"the tree is dressed with the new-session button only",
 		src.includes("function dressTree(host)") &&
 			src.includes('className = "uidy-tree-new"') &&
-			src.includes('className = "uidy-tree-opts"') &&
-			src.includes(".GAkraW_searchSlot,[class*=\"searchSlot\"]"),
-		"new session and display settings sit beside the host's own search box",
+			src.includes("GAkraW_searchSlot") &&
+			!src.includes("uidy-tree-opts") &&
+			!src.includes("voLabel"),
+		"new session sits beside the host's own search box, and no second control is added",
 	);
 
 	check(
-		"the shell's own display panel stays hidden while ours is open",
-		src.includes('setAttribute("data-uidy-vo-open"') &&
-			src.includes('removeAttribute("data-uidy-vo-open")') &&
-			src.includes('html[data-uidy-vo-open] [class*="viewOptions"]'),
-		"the left-edge panel cannot flash behind ours",
+		"the shell's own view-options control is left alone",
+		!src.includes("toggleViewOptionsPanel") &&
+			!src.includes("renderViewOptionsPanel") &&
+			!src.includes("data-uidy-viewopts-hook") &&
+			!src.includes("data-uidy-vo-open") &&
+			src.includes("placeViewOptions(lastBeside)"),
+		"the shell keeps its trigger and its panel; the plugin only docks the panel beside the popup",
 	);
 }
 

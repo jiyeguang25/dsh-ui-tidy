@@ -1468,13 +1468,11 @@ const RIGHTBAR_CSS = "";
 .uidy-pages-pop .uidy-page[data-active="true"] > svg{color:var(--dsw-alias-brand-primary,currentColor)}
 .uidy-note{padding:3px 8px;color:var(--dsw-alias-label-tertiary,inherit);font-size:11px}
 .uidy-tree-tools{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin-left:6px}
-.uidy-tree-new,.uidy-tree-opts{width:26px;height:26px;border:0;border-radius:6px;background:transparent;
+.uidy-tree-new{width:26px;height:26px;border:0;border-radius:6px;background:transparent;
   display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
-.uidy-tree-new:hover,.uidy-tree-opts:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14));
+.uidy-tree-new:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.14));
   color:var(--dsw-alias-label-primary,inherit)}
-.uidy-tree-new>svg,.uidy-tree-opts>svg{width:14px;height:14px}
-.uidy-viewopts{width:252px;padding:4px;z-index:var(--uidy-z-flyout,1215)}
-html[data-uidy-vo-open] [class*="viewOptions"],html[data-uidy-vo-open] [class*="viewOptionsMenu"]{display:none !important}
+.uidy-tree-new>svg{width:14px;height:14px}
 /* the session list relocated from the sidebar: it scrolls, the row styling comes
    from the host, and only the box that frames it is ours */
 .uidy-sessions{display:flex;flex-direction:column;min-width:0;max-height:min(56vh,460px);overflow-y:auto;padding:1px 0 2px}
@@ -1721,6 +1719,7 @@ html[data-uidy-vo-open] [class*="viewOptions"],html[data-uidy-vo-open] [class*="
 			for (const node of nodes) {
 				if (!(node instanceof HTMLElement)) continue;
 				if (node === panel || node.hasAttribute("data-uidy-viewoptions")) continue;
+				if (node.hasAttribute("data-uidy-flyout")) continue;
 				if (node.closest(".uidy-pages, .uidy-menu, .uidy-bar, .uidy-account-head") !== null) continue;
 				if (cabinBox !== null && node.contains(cabin)) continue;
 				const style = getComputedStyle(node);
@@ -1750,7 +1749,9 @@ html[data-uidy-vo-open] [class*="viewOptions"],html[data-uidy-vo-open] [class*="
 		}
 
 		function placeViewOptions(beside) {
-			const panel = findViewOptionsPanel();
+/* already docked: do not sweep the document for it again */
+			const known = document.querySelector("[data-uidy-viewoptions]");
+			const panel = known !== null ? known : findViewOptionsPanel();
 			if (panel === null) {
 				releaseViewOptions();
 				return;
@@ -2357,181 +2358,8 @@ function styleMenuBar(bar, shadow) {
 		/* ---------------------------------------------------------------- *
 		 * the popup, shared by the shell menu button and the fallback strip
 		 * ---------------------------------------------------------------- */
-		/* Session display settings, in the shell's own wording so the rows can be
-		 * matched against the shell's menu items. */
-		const VIEW_OPTION_LABELS = {
-			"view.groupBy": ["分组方式", "Group by"],
-			"view.groupWorkspace": ["按工作区", "Workspace"],
-			"view.groupTree": ["按工作区树", "Workspace tree"],
-			"view.groupFlat": ["单列表", "In one list"],
-			"view.orderBy": ["排序方式", "Order by"],
-			"view.orderManual": ["手动排序", "Manual"],
-			"view.orderUpdated": ["最近更新", "Last updated"],
-			"view.filterBy": ["筛选会话", "Filter sessions"],
-			"view.hideArchived": ["隐藏已归档", "Hide archived"],
-			"view.showArchived": ["全部对话（显示已归档）", "All conversations (show archived)"],
-			"view.onlyArchived": ["仅显示已归档", "Archived only"],
-			"view.optionsTitle": ["会话显示设置", "Session display settings"]
-		};
-		function voLabel(key) {
-			const row = VIEW_OPTION_LABELS[key];
-			if (row === undefined) return key;
-			const locale = String(document.documentElement.getAttribute("lang") || navigator.language || "").toLowerCase();
-			return row[locale.indexOf("en") >= 0 ? 1 : 0];
-		}
-		/*
-		 * Session display settings.
-		 *
-		 * The shell's own 视图选项 panel is portal-anchored to a trigger that lives in
-		 * the parked sidebar, so opening it puts the panel back against the left edge
-		 * of the window — the "original page" that kept appearing. This plugin owns
-		 * the panel instead: it opens the shell's menu briefly, reads the chosen item,
-		 * clicks it there and lets the shell close its own menu, so nothing of the
-		 * shell's is left on screen while the filter still applies to its list.
-		 */
-		const VIEW_OPTION_GROUPS = [
-			{ group: "view.groupBy", options: ["view.groupWorkspace", "view.groupTree", "view.groupFlat"] },
-			{ group: "view.orderBy", options: ["view.orderManual", "view.orderUpdated"] },
-			{ group: "view.filterBy", options: ["view.hideArchived", "view.showArchived", "view.onlyArchived"] }
-		];
-		let viewOptionsPanel = null;
-		let viewOptionsOutside = null;
-
-		function findHostViewOptionsTrigger() {
-			return document.querySelector('[aria-label="视图选项"],[class*="GAkraW"] button[aria-label*="视图"]');
-		}
-
-		function findHostViewOptionsMenu() {
-			const byClass = document.querySelector('[class*="viewOptionsMenu"],[role="menu"][class*="viewOptions"]');
-			if (byClass !== null && byClass.querySelector('[role="menuitemradio"]') !== null) return byClass;
-			const wanted = VIEW_OPTION_GROUPS.flatMap((entry) => entry.options).map((key) => voLabel(key));
-			const candidates = [...document.querySelectorAll('[role="menu"]')].filter((node) => {
-				if (node.closest(".uidy-menu, .uidy-pages, .uidy-bar, [data-uidy-viewopts]") !== null) return false;
-				const text = node.textContent || "";
-				return wanted.some((label) => text.indexOf(label) >= 0);
-			});
-			let best = null;
-			let bestArea = Infinity;
-			for (const node of candidates) {
-				const rect = node.getBoundingClientRect();
-				if (rect.width < 120 || rect.width > 520) continue;
-				if (rect.height < 60 || rect.height > 760) continue;
-				const area = rect.width * rect.height;
-				if (area < bestArea) { bestArea = area; best = node; }
-			}
-			return best;
-		}
-
-		function hostMenuItem(menu, label) {
-			const items = [...menu.querySelectorAll('[role="menuitemradio"],[role="menuitem"]')];
-			for (const item of items) if ((item.textContent || "").trim() === label) return item;
-			const leaves = [...menu.querySelectorAll("*")].filter((node) => node.children.length === 0 && (node.textContent || "").trim() === label);
-			if (leaves.length === 0) return null;
-			let best = leaves[0].parentElement;
-			for (const leaf of leaves.slice(1)) {
-				while (best !== null && !best.contains(leaf)) best = best.parentElement;
-			}
-			return best;
-		}
-
-		function readHostViewOptions(menu) {
-			const state = {};
-			for (const entry of VIEW_OPTION_GROUPS) {
-				for (const key of entry.options) {
-					const item = hostMenuItem(menu, voLabel(key));
-					if (item !== null) state[key] = item.getAttribute("aria-checked") === "true";
-				}
-			}
-			return state;
-		}
-
-		function pickHostViewOption(key, done) {
-			const trigger = findHostViewOptionsTrigger();
-			if (trigger === null) { if (done !== undefined) done(false); return; }
-			pressElement(trigger);
-			setTimeout(() => {
-				const menu = findHostViewOptionsMenu();
-				if (menu === null) { if (done !== undefined) done(false); return; }
-				const item = hostMenuItem(menu, voLabel(key));
-				if (item === null) { if (done !== undefined) done(false); return; }
-				item.click();
-				setTimeout(() => { if (done !== undefined) done(true); }, 240);
-			}, 150);
-		}
-
-		function closeViewOptionsPanel() {
-			document.documentElement.removeAttribute("data-uidy-vo-open");
-			if (viewOptionsOutside !== null) {
-				document.removeEventListener("pointerdown", viewOptionsOutside, true);
-				viewOptionsOutside = null;
-			}
-			if (viewOptionsPanel !== null) {
-				viewOptionsPanel.remove();
-				viewOptionsPanel = null;
-			}
-		}
-
-		function renderViewOptionsPanel(anchor, state) {
-			closeViewOptionsPanel();
-			const panel = document.createElement("div");
-			panel.className = "uidy-menu uidy-menu-fixed uidy-viewopts";
-			panel.setAttribute("role", "menu");
-			panel.setAttribute("data-uidy-viewopts", "true");
-			const box = anchor.getBoundingClientRect();
-			panel.style.left = Math.round(Math.max(12, Math.min(box.left, window.innerWidth - 268))) + "px";
-			panel.style.top = Math.round(box.bottom + 6) + "px";
-			for (const entry of VIEW_OPTION_GROUPS) {
-				const head = document.createElement("div");
-				head.className = "uidy-group";
-				head.textContent = voLabel(entry.group);
-				panel.appendChild(head);
-				for (const key of entry.options) {
-					const row = document.createElement("button");
-					row.type = "button";
-					row.className = "uidy-item" + (state[key] === true ? " uidy-item-on" : "");
-					row.setAttribute("role", "menuitemradio");
-					row.setAttribute("aria-checked", state[key] === true ? "true" : "false");
-					row.textContent = voLabel(key);
-					row.addEventListener("click", (event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						pickHostViewOption(key, (ok) => {
-							if (ok === true) {
-								row.className = "uidy-item uidy-item-on";
-								row.setAttribute("aria-checked", "true");
-							} else {
-								closeViewOptionsPanel();
-							}
-						});
-					});
-					panel.appendChild(row);
-				}
-			}
-			document.body.appendChild(panel);
-			viewOptionsPanel = panel;
-			viewOptionsOutside = (event) => {
-				if (panel.contains(event.target)) return;
-				closeViewOptionsPanel();
-			};
-			document.addEventListener("pointerdown", viewOptionsOutside, true);
-		}
-
-		function toggleViewOptionsPanel(anchor) {
-			if (viewOptionsPanel !== null) { closeViewOptionsPanel(); return; }
-			document.documentElement.setAttribute("data-uidy-vo-open", "");
-			const trigger = findHostViewOptionsTrigger();
-			if (trigger !== null) pressElement(trigger);
-			setTimeout(() => {
-				const menu = findHostViewOptionsMenu();
-				const state = menu === null ? {} : readHostViewOptions(menu);
-				/* hand the shell's menu back: ours replaces it on screen */
-				if (trigger !== null) pressElement(trigger);
-				renderViewOptionsPanel(anchor, state);
-			}, 170);
-		}
-
 		/**
-		 * Put the two small buttons next to the host's own search box.
+		 * Put the new-session button next to the host's own search box.
 		 * @param host - the panel the tree was moved into.
 		 * @returns {void}
 		 */
@@ -2559,45 +2387,16 @@ function styleMenuBar(bar, shadow) {
 				startSession();
 			});
 			tools.appendChild(fresh);
-			const opts = document.createElement("button");
-			opts.type = "button";
-			opts.className = "uidy-tree-opts";
-			opts.title = voLabel("view.optionsTitle");
-			opts.setAttribute("aria-label", voLabel("view.optionsTitle"));
-			opts.innerHTML = iconMarkup("sliders");
-			opts.addEventListener("click", (event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				toggleViewOptionsPanel(opts);
-			});
-			tools.appendChild(opts);
 			row.appendChild(tools);
-			/*
-			 * The tree prints its own 视图选项 button, which opens the shell's panel at
-			 * the parked sidebar. Ours is the same control, kept inside the popup.
-			 */
-			if (root.getAttribute("data-uidy-viewopts-hook") !== "true") {
-				/* the tree body does not contain the shell's own trigger */
-				root.setAttribute("data-uidy-viewopts-hook", "true");
-				root.addEventListener("click", (event) => {
-					const target = event.target;
-					if (target instanceof Element === false) return;
-					const trigger = target.closest('[aria-label="视图选项"]');
-					if (trigger === null) return;
-					event.preventDefault();
-					event.stopPropagation();
-					toggleViewOptionsPanel(trigger);
-				}, true);
-			}
 		}
 		/**
 		 * The relocated session tree, rendered inside a menu.
 		 *
 		 * The tree is the host's own node, moved here by `relocateSessions()`; this
 		 * component only holds the box it scrolls in and dresses the tree with the
-		 * two small buttons the sidebar used to carry: new session beside the host's
-		 * own search box, session display settings beside it. The buttons are put
-		 * back whenever the host re-renders its list.
+		 * one button the sidebar used to carry: new session beside the host's
+		 * own search box. The shell keeps its own 视图选项 trigger and its own panel,
+		 * which are docked beside this box rather than replaced. The button is put back whenever the host re-renders its list.
 		 * @returns the container element.
 		 */
 		function SessionPanel() {
@@ -2746,7 +2545,13 @@ react.useEffect(() => {
 				 * cached anchor left the first frames undocked, and the panel was visible under
 				 * the popup at the left edge before jumping beside it — the flash the user saw.
 				 */
+				let dockScheduled = false;
 				const dock = () => {
+					if (dockScheduled) return;
+					dockScheduled = true;
+					setTimeout(() => { dockScheduled = false; dockNow(); }, 16);
+				};
+				const dockNow = () => {
 					const popup = document.querySelector(".uidy-menu-sessions");
 					if (popup === null) return;
 					lastBeside = popup.getBoundingClientRect();
@@ -2769,9 +2574,19 @@ react.useEffect(() => {
 				 * popup. A mutation observer runs before the paint, so the dock happens in the
 				 * same frame the panel appears.
 				 */
-				const observer = new MutationObserver(() => {
-					if (document.querySelector('[class*="viewOptions"]') === null) return;
-					dock();
+				const observer = new MutationObserver((mutations) => {
+					/*
+					 * Only the added nodes are inspected: a document-wide query on every
+					 * mutation is what made switching sessions feel stuck, because switching
+					 * re-renders the host's list in a burst of childList changes.
+					 */
+					for (const mutation of mutations) {
+						for (const added of mutation.addedNodes) {
+						if (added instanceof Element === false) continue;
+						if (added.hasAttribute("data-uidy-viewoptions") || (added.className && String(added.className).indexOf("viewOptions") >= 0)) { dock(); return; }
+						if (added.querySelector !== undefined && added.querySelector('[class*="viewOptions"]') !== null) { dock(); return; }
+					}
+					}
 				});
 				observer.observe(document.body, { childList: true, subtree: true });
 				document.addEventListener("click", onPress, false);

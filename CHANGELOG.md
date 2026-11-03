@@ -1,5 +1,18 @@
 # Changelog
-## 0.4.17
+
+## 0.4.18
+
+- **The session popup no longer adds its own display-settings control.** The shell already
+  prints a 视图选项 button on the tree's own header; the plugin keeps that one untouched and
+  only docks the panel it opens beside the popup. The second button and the click hijack added
+  in 0.4.17 are gone.
+- **Switching sessions stopped stalling.** The popup's mutation observer used to run a
+  document-wide query on every DOM mutation while it was open, and switching sessions
+  re-renders the host's list in a burst of childList changes. It now inspects only the nodes
+  that were added, and the dock itself is throttled to one pass per frame and reuses the
+  panel and flyouts it has already moved.
+- Smoke grows two contracts: the tree is dressed with the new-session button only, and the
+  shell's own view-options control is left alone. 29 checks.## 0.4.17
 - The session popup no longer carries a search box of its own. It queried the host for message history and showed hits that could not be opened from inside the popup, which read as a dead entry point next to the tree's real search. The tree keeps the host's own search box; the plugin's second one is gone from the popup, the left dock, the CSS and the copy.
 - New session is a small button dressed onto the relocated tree's own header row, beside the host's search box, instead of a full-width row above it. Session display settings is the same kind of button next to it. Both are re-inserted whenever the host re-renders its list, and the tree's own 视图选项 trigger is intercepted so it opens the plugin's panel rather than the shell's.
 - Session display settings is owned by the plugin. The shell's own panel is portal-anchored to a trigger parked in the hidden sidebar, so opening it put the panel back at the left edge of the window - the "original page" that kept appearing, including when only the archive filter was picked. The plugin opens the shell's menu briefly, reads the chosen item, clicks it there and lets the shell close its own menu, then shows its own panel; while it is open the shell's panel is hidden by attribute, so nothing of the shell's is left on screen while the filter still applies to the shell's list.
