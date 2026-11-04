@@ -1769,6 +1769,15 @@ const RIGHTBAR_CSS = "";
 				panel.style.setProperty("left", Math.round(besideRect.left - gap - width) + "px", "important");
 			} else {
 				panel.style.setProperty("left", Math.round(window.innerWidth - width - 12) + "px", "important");
+			/*
+			 * The shell may move the panel back after we dock it. If it is no longer
+			 * at the expected position, schedule another dock.
+			 */
+			const expectedLeft = Math.round(window.innerWidth - width - 12);
+			const actualRect = panel.getBoundingClientRect();
+			if (Math.abs(actualRect.left - expectedLeft) > 4) {
+				window.setTimeout(() => { placeViewOptions(beside); }, 100);
+			}
 			}
 			const top = besideRect === null ? 44 : besideRect.top;
 			panel.style.setProperty("top", Math.round(Math.max(44, Math.min(top, window.innerHeight - 160))) + "px", "important");
@@ -2558,7 +2567,7 @@ react.useEffect(() => {
 					const trigger = node.closest('[aria-label="视图选项"]');
 					if (trigger === null) return;
 					const popup = trigger.closest(".uidy-menu-sessions");
-					if (popup === null) return;
+					lastBeside = popup === null ? null : popup.getBoundingClientRect();
 					lastBeside = popup.getBoundingClientRect();
 					for (const delay of [0, 40, 90, 160, 300, 600]) setTimeout(dock, delay);
 				};
@@ -2583,12 +2592,22 @@ react.useEffect(() => {
 					}
 				});
 				observer.observe(document.body, { childList: true, subtree: true });
+				/*
+				 * Fallback: the shell may render the panel in a portal the observer
+				 * cannot see. Poll for it.
+				 */
+				const poll = window.setInterval(() => {
+					if (document.querySelector("[data-uidy-viewoptions]") !== null) return;
+					const found = findViewOptionsPanel();
+					if (found !== null) dock();
+				}, 200);
 				document.addEventListener("click", onPress, false);
 				document.addEventListener("pointerdown", onPress, true);
 				return () => {
 					document.removeEventListener("click", onPress, false);
 					document.removeEventListener("pointerdown", onPress, true);
 					observer.disconnect();
+					window.clearInterval(poll);
 					/*
 					 * The docked styles are deliberately kept when the popup closes: releasing
 					 * them sent the panel back to the hidden sidebar anchor, which is the flash

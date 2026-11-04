@@ -382,6 +382,18 @@ unmute();
 			!src.includes("window.location.reload") && !src.includes("item.reloadUi"),
 		"a full page reload on dsh-app:// re-boots the bundle with a stale rev and kills the plugin",
 	);
+
+	check(
+		"the dock fires even when the sessions popup is closed",
+			!src.includes("if (popup === null) return;") && src.includes("lastBeside = popup === null ? null : popup.getBoundingClientRect();"),
+		"the shell opens this panel from the hidden sidebar trigger; the dock must not wait for the sessions popup",
+	);
+
+	check(
+		"the dock keeps polling for a panel the observer cannot see",
+			src.includes("window.setInterval(() =>") && src.includes("window.clearInterval(poll);"),
+		"a portal outside document.body escapes the MutationObserver; a poll catches it",
+	);
 }
 
 /* ---------------- report ---------------- */

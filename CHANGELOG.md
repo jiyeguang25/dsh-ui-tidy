@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.21
+
+- The dock fires even when the sessions popup is closed: the shell opens the panel from its own hidden-sidebar trigger, so the old `popup === null` gate kept the panel at the window edge.
+- A 200 ms poll catches a panel the MutationObserver cannot see, because the shell renders it in a portal outside `document.body`.
+- `placeViewOptions` re-checks its own position and schedules another dock if the shell moved the panel back.
+- Smoke: 34 checks (two new contracts).
+
 ## 0.4.20
 
 
