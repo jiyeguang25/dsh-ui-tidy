@@ -394,6 +394,12 @@ unmute();
 			src.includes("window.setInterval(() =>") && src.includes("window.clearInterval(poll);"),
 		"a portal outside document.body escapes the MutationObserver; a poll catches it",
 	);
+
+	check(
+		"the dock does not re-check its own position",
+			!src.includes("expectedLeft") && !src.includes("window.setTimeout(() => { placeViewOptions(beside); }"),
+		"the re-check fired every 100ms when the panel docked beside the popup, because the expected left never matched the actual dock position",
+	);
 }
 
 /* ---------------- report ---------------- */

@@ -1769,15 +1769,7 @@ const RIGHTBAR_CSS = "";
 				panel.style.setProperty("left", Math.round(besideRect.left - gap - width) + "px", "important");
 			} else {
 				panel.style.setProperty("left", Math.round(window.innerWidth - width - 12) + "px", "important");
-			/*
-			 * The shell may move the panel back after we dock it. If it is no longer
-			 * at the expected position, schedule another dock.
-			 */
-			const expectedLeft = Math.round(window.innerWidth - width - 12);
-			const actualRect = panel.getBoundingClientRect();
-			if (Math.abs(actualRect.left - expectedLeft) > 4) {
-				window.setTimeout(() => { placeViewOptions(beside); }, 100);
-			}
+			/* The 200ms poll catches a panel the observer cannot see. */
 			}
 			const top = besideRect === null ? 44 : besideRect.top;
 			panel.style.setProperty("top", Math.round(Math.max(44, Math.min(top, window.innerHeight - 160))) + "px", "important");

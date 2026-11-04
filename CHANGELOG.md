@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.22
+
+- Removed the position re-check from `placeViewOptions`: it fired every 100ms when the panel docked beside the popup (expected left never matched the dock position), which fought the shell's own positioning and closed the page on interaction.
+- The 200 ms poll remains as the fallback for panels the MutationObserver cannot see.
+- Smoke: 35 checks (one new contract).
+
 ## 0.4.21
 
 - The dock fires even when the sessions popup is closed: the shell opens the panel from its own hidden-sidebar trigger, so the old `popup === null` gate kept the panel at the window edge.
