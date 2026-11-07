@@ -400,6 +400,12 @@ unmute();
 			!src.includes("expectedLeft") && !src.includes("window.setTimeout(() => { placeViewOptions(beside); }"),
 		"the re-check fired every 100ms when the panel docked beside the popup, because the expected left never matched the actual dock position",
 	);
+
+	check(
+		"the popup is read once, so a closed popup cannot throw before the dock is scheduled",
+			!/lastBeside = popup\.getBoundingClientRect\(\);/.test(src),
+		"a second unguarded read of the same popup threw a TypeError when the sessions popup was closed, so none of the dock delays were ever scheduled",
+	);
 }
 
 /* ---------------- report ---------------- */

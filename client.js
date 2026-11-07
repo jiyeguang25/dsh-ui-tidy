@@ -745,7 +745,7 @@ function copyDiagnostics() {
 		 * @returns the trimmed label.
 		 */
 		function readRowLabel(row) {
-			const text = (row.textContent || "").trim().replace(/[ 0-9０-９]+$/u, "");
+			const text = (row.textContent || "").trim().replace(/^[ 0-9０-９]+/u, "").replace(/[ 0-9０-９]+$/u, "");
 			if (text !== "") return text;
 			const aria = (row.getAttribute("aria-label") || "").trim();
 			if (aria !== "") return aria;
@@ -1165,7 +1165,8 @@ function copyDiagnostics() {
  * so a direct-child chain (which an earlier revision used) matches nothing at
  * all and the rail stays mounted.
  */
-[data-uidy-nosb] [class*="sidebarCol"] [class*="wtg9ga_root"]{display:none !important}
+[data-uidy-nosb] [class*="sidebarCol"] [class*="wtg9ga_root"],
+[data-uidy-nosb] [class*="sidebarCol"] [class*="Root"]{display:none !important}
 /*
  * The rail's buttons are position:FIXED (top:6px, left:12px/48px, z-index:30),
  * so they are anchored to the viewport and are NOT clipped by the zero-width
@@ -1177,6 +1178,10 @@ function copyDiagnostics() {
 [data-uidy-nosb] [class*="wtg9ga_railIn"],
 [data-uidy-nosb] [class*="wtg9ga_toggle"],
 [data-uidy-nosb] [class*="wtg9ga_newSession"],
+[data-uidy-nosb] [class*="Rail"],
+[data-uidy-nosb] [class*="railIn"],
+[data-uidy-nosb] [class*="Toggle"],
+[data-uidy-nosb] [class*="newSession"],
 [data-uidy-nosb] [class*="mneme-topentry"]{display:none !important}
 [data-uidy-nosb] [class*="handle"]:has(+ div[class*="sidebarCol"]){display:none !important}
 /*
@@ -1311,7 +1316,7 @@ header:has([class*="_titleRow"]) [class*="_viewTabs"]{display:flex !important;fl
  * hidden rather than removed - the title bar button still drives them, because a
  * hidden button can still be clicked programmatically.
  */
-header:has([class*="_titleRow"]) .mneme-pipe-trigger{display:none !important}
+html[data-uidy-on] header:has([class*="_titleRow"]) .mneme-pipe-trigger{display:none !important}
 /*
  * The subagent plugin's own counter stays: it is the only view of the
  * current session's subagents, and the session row is where the user
@@ -1329,13 +1334,14 @@ html[data-uidy-on] header:has([class*="_titleRow"]) .dsh-sam-trigger .dsh-sam-ic
  * around it ("1 个后台任务运行中") is wider than the room it leaves in the
  * header. The script shortens the label to the number alone.
  */
-header:has([class*="_titleRow"]) .Ag-ohG_trigger > svg:last-child{display:none !important}
+header:has([class*="_titleRow"]) [class*="_trigger"][aria-haspopup][aria-label*="后台任务"] > svg:last-child{display:none !important}
+html[data-uidy-on] header:has([class*="_titleRow"]) [class*="_trigger"][aria-label*="后台任务"] > svg:last-child{display:none !important}
 /*
  * The chip's own label is replaced with the task count by syncTaskChip; the
  * rule below is the belt to that braces, in case the host re-renders the chip
  * between the observer's passes.
  */
-header:has([class*="_titleRow"]) .Ag-ohG_count{max-width:78px !important;overflow:hidden !important;text-overflow:clip !important}
+html[data-uidy-on] header:has([class*="_titleRow"]) [class*="_count"]{max-width:78px !important;overflow:hidden !important;text-overflow:clip !important}
 /*
  * The "open with" control is a split button: a wide default action and a narrow
  * chevron that opens the list of other programs. Together they cost 41px of the
@@ -1343,8 +1349,8 @@ header:has([class*="_titleRow"]) .Ag-ohG_count{max-width:78px !important;overflo
  * folded into the main button, so one control opens the list - the default
  * program is the first entry in it - and the pair becomes one button wide.
  */
-header:has([class*="_titleRow"]) .mOxcpG_chevron{display:none !important}
-header:has([class*="_titleRow"]) .mOxcpG_split{width:23px !important}
+html[data-uidy-on] header:has([class*="_titleRow"]) [class*="_chevron"]{display:none !important}
+html[data-uidy-on] header:has([class*="_titleRow"]) [class*="_split"]{width:23px !important}
 `;
 
 /*
@@ -2362,11 +2368,11 @@ function styleMenuBar(bar, shadow) {
 		 */
 		function dressTree(host) {
 			const tree = host.querySelector('[class*="workspacesRoot"],[class*="treeRoot"],[role="tree"]');
-			const shellRoot = host.querySelector('.GAkraW_root,[class*="workspacesRoot"]') || host;
+			const shellRoot = host.querySelector('[class*="workspacesRoot"],.GAkraW_root') || host;
 			const root = shellRoot;
 			if (root.querySelector("[data-uidy-tree-new]") !== null) return;
-			const slot = root.querySelector('.GAkraW_sectionHeader,[class*="sectionHeader"]') ||
-				root.querySelector('.GAkraW_searchSlot,[class*="searchSlot"]');
+			const slot = root.querySelector('[class*="sectionHeader"],.GAkraW_sectionHeader') ||
+				root.querySelector('[class*="searchSlot"],.GAkraW_searchSlot');
 			const row = slot === null ? root : slot;
 			const tools = document.createElement("div");
 			tools.className = "uidy-tree-tools";
@@ -2560,7 +2566,6 @@ react.useEffect(() => {
 					if (trigger === null) return;
 					const popup = trigger.closest(".uidy-menu-sessions");
 					lastBeside = popup === null ? null : popup.getBoundingClientRect();
-					lastBeside = popup.getBoundingClientRect();
 					for (const delay of [0, 40, 90, 160, 300, 600]) setTimeout(dock, delay);
 				};
 				/*
