@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.23
+
+- **The plugin-manager switch row is visible again.** The shipped-sidebar guard had five selectors — `[class*="Rail"]`, `[class*="railIn"]`, `[class*="Toggle"]`, `[class*="newSession"]`, `[class*="mneme-topentry"]` — matching ANY descendant of the frame that carries `data-uidy-nosb`. That frame also contains the centre column, so the unscoped matches reached the whole app and hid any page control whose (hashed) class carried "Toggle" / "Rail". The plugin manager's switch rows were the casualty. All five are now scoped under `[class*="sidebarCol"]`, matching the `[class*="Root"]` rule directly above them, so the guard stays on the rail and off every other page.
+- No node on this box: the change is a CSS-selector scoping edit inside a template string, no JS structure touched.
+
 ## 0.4.22
 
 - Removed the position re-check from `placeViewOptions`: it fired every 100ms when the panel docked beside the popup (expected left never matched the dock position), which fought the shell's own positioning and closed the page on interaction.

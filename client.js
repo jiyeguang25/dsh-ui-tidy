@@ -1174,15 +1174,22 @@ function copyDiagnostics() {
  * the new-session button and the mneme entry floating over the title bar.
  * Hiding the rail itself is what actually removes them; these child rules are
  * the belt-and-braces guard for a rail rendered outside the column.
+ *
+ * Every one of these selectors is scoped under [class*="sidebarCol"]. The frame
+ * that carries `data-uidy-nosb` also contains the centre column, so an unscoped
+ * descendant match reached the WHOLE app: a page whose own control carried
+ * "Toggle" / "Rail" in its (hashed) class list was hidden along with the rail.
+ * The plugin-manager switch row was the reported casualty. Scoping to the
+ * sidebar column keeps the guard on the rail and off every other page.
  */
-[data-uidy-nosb] [class*="wtg9ga_railIn"],
-[data-uidy-nosb] [class*="wtg9ga_toggle"],
-[data-uidy-nosb] [class*="wtg9ga_newSession"],
-[data-uidy-nosb] [class*="Rail"],
-[data-uidy-nosb] [class*="railIn"],
-[data-uidy-nosb] [class*="Toggle"],
-[data-uidy-nosb] [class*="newSession"],
-[data-uidy-nosb] [class*="mneme-topentry"]{display:none !important}
+[data-uidy-nosb] [class*="sidebarCol"] [class*="wtg9ga_railIn"],
+[data-uidy-nosb] [class*="sidebarCol"] [class*="wtg9ga_toggle"],
+[data-uidy-nosb] [class*="sidebarCol"] [class*="wtg9ga_newSession"],
+[data-uidy-nosb] [class*="sidebarCol"] [class*="Rail"],
+[data-uidy-nosb] [class*="sidebarCol"] [class*="railIn"],
+[data-uidy-nosb] [class*="sidebarCol"] [class*="Toggle"],
+[data-uidy-nosb] [class*="sidebarCol"] [class*="newSession"],
+[data-uidy-nosb] [class*="sidebarCol"] [class*="mneme-topentry"]{display:none !important}
 [data-uidy-nosb] [class*="handle"]:has(+ div[class*="sidebarCol"]){display:none !important}
 /*
  * Marked seat hosts live in the zero-width column, which already clips them
