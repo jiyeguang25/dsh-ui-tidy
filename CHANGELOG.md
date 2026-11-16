@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.24
+
+- **The sub-agent drawer backdrop no longer leaves a hard vertical seam.** The `.dsh-sam-backdrop` override pinned only `top: 84px`, leaving left/right/bottom to the shell's own positioning, so the dim mask behind the drawer was a rectangle whose edges did not line up with the viewport — the exposed edge read as a sharp straight-line blur over the right half of the conversation. All four edges are now pinned (`top: 84px; left/right/bottom: 0`), so the mask fills the window evenly. No JS touched; CSS edit inside the gated `html[data-uidy-on]` block only.
+
 ## 0.4.23
 
 - **The plugin-manager switch row is visible again.** The shipped-sidebar guard had five selectors — `[class*="Rail"]`, `[class*="railIn"]`, `[class*="Toggle"]`, `[class*="newSession"]`, `[class*="mneme-topentry"]` — matching ANY descendant of the frame that carries `data-uidy-nosb`. That frame also contains the centre column, so the unscoped matches reached the whole app and hid any page control whose (hashed) class carried "Toggle" / "Rail". The plugin manager's switch rows were the casualty. All five are now scoped under `[class*="sidebarCol"]`, matching the `[class*="Root"]` rule directly above them, so the guard stays on the rail and off every other page.

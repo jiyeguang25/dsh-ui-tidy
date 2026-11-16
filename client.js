@@ -1176,7 +1176,7 @@ function copyDiagnostics() {
  * the belt-and-braces guard for a rail rendered outside the column.
  *
  * Every one of these selectors is scoped under [class*="sidebarCol"]. The frame
- * that carries `data-uidy-nosb` also contains the centre column, so an unscoped
+ * that carries data-uidy-nosb also contains the centre column, so an unscoped
  * descendant match reached the WHOLE app: a page whose own control carried
  * "Toggle" / "Rail" in its (hashed) class list was hidden along with the rail.
  * The plugin-manager switch row was the reported casualty. Scoping to the
@@ -2957,7 +2957,7 @@ const CUSTOM_CSS = [
 	'.uidy-page[data-tip="left"]:hover::after{left:0;transform:none}',
 	'.uidy-page[data-tip="right"]:hover::after{left:auto;right:0;transform:none}',
 	"/* Rules that touch another plugin's own classes are gated on html[data-uidy-on], so they vanish on unload. */",
-	"html[data-uidy-on] .dsh-sam-backdrop{top:84px !important}",
+	"html[data-uidy-on] .dsh-sam-backdrop{top:84px !important;left:0 !important;right:0 !important;bottom:0 !important}",
 	"html[data-uidy-on] .dsh-sam-panel{height:100% !important;border-top-left-radius:12px}",
 	"/* the memory sheet: a sheet, not a takeover - the page behind stays legible */",
 	"html[data-uidy-on] .mneme-backdrop{background:rgba(0,0,0,.14) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}",
